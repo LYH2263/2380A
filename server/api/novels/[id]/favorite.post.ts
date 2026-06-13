@@ -42,10 +42,16 @@ export default defineEventHandler(async (event) => {
     return { success: true, favorited: false }
   } else {
     // 添加收藏
+    const novelData = await prisma.novel.findUnique({
+      where: { id: novelId },
+      select: { updatedAt: true }
+    })
+
     await prisma.favorite.create({
       data: {
         userId: user.userId,
-        novelId
+        novelId,
+        lastViewedUpdateAt: novelData?.updatedAt
       }
     })
     return { success: true, favorited: true }

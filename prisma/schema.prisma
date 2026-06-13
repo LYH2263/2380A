@@ -20,8 +20,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // 书架设置
+  bookshelfViewMode String @default("grid") // grid, list, compact
+  bookshelfSortBy   String @default("lastReadAt") // lastReadAt, favoritedAt, updatedAt, title
+  bookshelfSortOrder String @default("desc") // asc, desc
+
   // 关联
   favorites          Favorite[]
+  bookLists          BookList[]
   likes              Like[]
   comments           Comment[]
   commentLikes       CommentLike[]
@@ -122,17 +128,67 @@ model Comment {
 
 // 收藏模型
 model Favorite {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  novelId   Int
-  createdAt DateTime @default(now())
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  novelId         Int
+  createdAt       DateTime @default(now())
+  readingStatus   ReadingStatus @default(UNREAD)
+  lastReadAt      DateTime?
+  lastChapterId  Int?
+  progress        Float    @default(0)
+  lastViewedUpdateAt DateTime?
+  hasNewUpdate    Boolean  @default(false)
 
   // 关联
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  bookListItems BookListItem[]
 
   @@unique([userId, novelId])
   @@map("favorites")
+}
+
+enum ReadingStatus {
+  UNREAD
+  READING
+  FINISHED
+}
+
+// 书单模型
+model BookList {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  name        String
+  description String?  @db.Text
+  color       String?
+  sortOrder   Int      @default(0)
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items    BookListItem[]
+
+  @@unique([userId, name])
+  @@index([userId, sortOrder])
+  @@map("book_lists")
+}
+
+// 书单-小说关联模型
+model BookListItem {
+  id         Int      @id @default(autoincrement())
+  bookListId Int
+  favoriteId Int
+  addedAt    DateTime @default(now())
+
+  // 关联
+  bookList BookList @relation(fields: [bookListId], references: [id], onDelete: Cascade)
+  favorite Favorite @relation(fields: [favoriteId], references: [id], onDelete: Cascade)
+
+  @@unique([bookListId, favoriteId])
+  @@index([bookListId, addedAt])
+  @@map("book_list_items")
 }
 
 // 点赞模型

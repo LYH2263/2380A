@@ -38,11 +38,11 @@
           </NuxtLink>
           <NuxtLink 
             v-if="user" 
-            to="/user/favorites" 
+            to="/user/bookshelf" 
             class="text-white/70 hover:text-white transition"
             active-class="text-white font-semibold"
           >
-            我的收藏
+            我的书架
           </NuxtLink>
         </nav>
 
@@ -77,12 +77,12 @@
                   class="absolute right-0 mt-2 w-48 glass rounded-xl shadow-xl overflow-hidden"
                 >
                   <NuxtLink 
-                    to="/user/favorites" 
+                    to="/user/bookshelf" 
                     class="block px-4 py-3 hover:bg-white/10 transition"
                     @click="showDropdown = false"
                   >
-                    <Icon name="ph:heart" class="mr-2" />
-                    我的收藏
+                    <Icon name="ph:books" class="mr-2" />
+                    我的书架
                   </NuxtLink>
                   <NuxtLink 
                     v-if="user.role === 'ADMIN'"

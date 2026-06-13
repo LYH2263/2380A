@@ -363,12 +363,41 @@ const toast = useToast()
 const { settings, fontFamilyMap, pageWidthMap, themeStyles, isNightMode, applyThemeToBody } = useReadingSettings()
 const { renderContentWithMentions } = useCommentUtils()
 
-const novelId = computed(() => route.params.id)
-const chapterId = computed(() => route.params.chapterId)
+const novelId = computed(() => Number(route.params.id))
+const chapterId = computed(() => Number(route.params.chapterId))
 
 const { data: chapter, pending, refresh: refreshChapter } = await useFetch(
   () => `/api/novels/${novelId.value}/chapters/${chapterId.value}`
 )
+
+const updateReadingProgress = async () => {
+  if (!user.value) return
+  
+  try {
+    await $fetch('/api/user/bookshelf/progress', {
+      method: 'POST',
+      body: {
+        novelId: novelId.value,
+        chapterId: chapterId.value,
+        progress: 0
+      }
+    })
+  } catch (e: any) {
+    // 静默失败，可能是用户未收藏该小说
+  }
+}
+
+const clearUpdateNotification = async () => {
+  if (!user.value) return
+  
+  try {
+    await $fetch(`/api/user/bookshelf/${novelId.value}/clear-update`, {
+      method: 'POST'
+    })
+  } catch (e: any) {
+    // 静默失败
+  }
+}
 
 const showSettings = ref(false)
 const showToc = ref(false)
@@ -428,7 +457,16 @@ watch(() => route.params.chapterId, () => {
   currentPage.value = 1
   allComments.value = []
   sortBy.value = 'newest'
+  updateReadingProgress()
+  clearUpdateNotification()
 })
+
+watch(() => chapter.value, (newChapter) => {
+  if (newChapter) {
+    updateReadingProgress()
+    clearUpdateNotification()
+  }
+}, { immediate: true })
 
 const displayedComments = computed(() => {
   if (loadMode.value === 'scroll') {
