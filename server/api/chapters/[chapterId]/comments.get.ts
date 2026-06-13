@@ -26,7 +26,8 @@ export default defineEventHandler(async (event) => {
 
   const where: any = {
     chapterId,
-    parentId: null
+    parentId: null,
+    reviewStatus: 'APPROVED'
   }
 
   if (paragraph !== undefined) {
@@ -73,6 +74,7 @@ export default defineEventHandler(async (event) => {
               select: { likes: true }
             }
           },
+          where: { reviewStatus: 'APPROVED' },
           orderBy: { createdAt: 'asc' }
         }
       },

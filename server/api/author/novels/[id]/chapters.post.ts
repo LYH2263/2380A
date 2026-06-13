@@ -2,6 +2,7 @@ import prisma from '~/server/utils/prisma'
 import { requireAuth } from '~/server/utils/auth'
 import { authorChapterSchema } from '~/server/utils/validators'
 import { recordChapterPublished } from '~/server/utils/activity'
+import { checkSensitiveWords } from '~/server/utils/sensitiveWordFilter'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -44,6 +45,32 @@ export default defineEventHandler(async (event) => {
 
   const { title, content, order, status, scheduledAt } = result.data
 
+  const chapterStatus = status || 'PUBLISHED'
+  let reviewStatus = 'DRAFT'
+  let submittedAt = null
+  let sensitiveResult: any = null
+
+  if (chapterStatus === 'PUBLISHED') {
+    const contentToCheck = `${title} ${content}`
+    sensitiveResult = await checkSensitiveWords(contentToCheck)
+
+    if (sensitiveResult.shouldBlock) {
+      const blockedWords = sensitiveResult.matchedWords.filter((w: any) => w.level === 'BLOCK').map((w: any) => w.word)
+      throw createError({
+        statusCode: 400,
+        message: `内容包含违禁敏感词：${blockedWords.join('、')}，无法提交`
+      })
+    }
+
+    reviewStatus = 'PENDING'
+    submittedAt = new Date()
+
+    if (sensitiveResult.hasSensitiveWords) {
+      const warnWords = sensitiveResult.matchedWords.map((w: any) => w.word)
+      event.node.res.setHeader('X-Sensitive-Words', warnWords.join(','))
+    }
+  }
+
   const maxOrder = await prisma.chapter.findFirst({
     where: { novelId },
     orderBy: { order: 'desc' },
@@ -59,14 +86,16 @@ export default defineEventHandler(async (event) => {
     content,
     order: newOrder,
     wordCount,
-    status: status || 'PUBLISHED'
+    status: chapterStatus,
+    reviewStatus,
+    submittedAt
   }
 
   if (status === 'SCHEDULED' && scheduledAt) {
     chapterData.scheduledAt = new Date(scheduledAt)
   }
 
-  if ((status || 'PUBLISHED') === 'PUBLISHED') {
+  if (chapterStatus === 'PUBLISHED') {
     chapterData.publishedAt = new Date()
   }
 
@@ -74,9 +103,15 @@ export default defineEventHandler(async (event) => {
     data: chapterData
   })
 
-  if ((status || 'PUBLISHED') === 'PUBLISHED') {
+  if (reviewStatus === 'APPROVED') {
     recordChapterPublished(user.userId, novelId, chapter.id, novel.title, chapter.title)
   }
 
-  return { success: true, chapter }
+  return {
+    success: true,
+    chapter,
+    warning: chapterStatus === 'PUBLISHED' && sensitiveResult?.hasSensitiveWords
+      ? `内容包含敏感词：${sensitiveResult.matchedWords.map((w: any) => w.word).join('、')}，已自动进入人工审核`
+      : null
+  }
 })

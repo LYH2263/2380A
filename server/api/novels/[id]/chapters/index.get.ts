@@ -23,11 +23,18 @@ export default defineEventHandler(async (event) => {
 
   if (!isAuthorOrAdmin) {
     const now = new Date()
-    where.OR = [
-      { status: 'PUBLISHED' },
+    where.AND = [
       {
-        status: 'SCHEDULED',
-        scheduledAt: { lte: now }
+        reviewStatus: 'APPROVED'
+      },
+      {
+        OR: [
+          { status: 'PUBLISHED' },
+          {
+            status: 'SCHEDULED',
+            scheduledAt: { lte: now }
+          }
+        ]
       }
     ]
   }

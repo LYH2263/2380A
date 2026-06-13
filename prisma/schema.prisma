@@ -48,6 +48,7 @@ model User {
   novelBackups            NovelBackup[]
   tagPreferences          UserTagPreference[]
   recommendationFeedbacks RecommendationFeedback[]
+  reviewRecords           ReviewRecord[]           @relation("ReviewerRecords")
 
   @@map("users")
 }
@@ -59,17 +60,20 @@ enum Role {
 
 // 小说模型
 model Novel {
-  id          Int         @id @default(autoincrement())
-  title       String
-  description String      @db.Text
-  cover       String?
-  authorId    Int
-  status      NovelStatus @default(ONGOING)
-  tags        String[]
-  viewCount   Int         @default(0)
-  isFeatured  Boolean     @default(false)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id              Int         @id @default(autoincrement())
+  title           String
+  description     String      @db.Text
+  cover           String?
+  authorId        Int
+  status          NovelStatus @default(ONGOING)
+  tags            String[]
+  viewCount       Int         @default(0)
+  isFeatured      Boolean     @default(false)
+  reviewStatus    ReviewStatus @default(DRAFT)
+  rejectionReason String?     @db.Text
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  submittedAt     DateTime?
 
   // 关联
   author                  User                     @relation("AuthorNovels", fields: [authorId], references: [id])
@@ -84,6 +88,7 @@ model Novel {
   dailyStats              NovelDailyStat[]
   backups                 NovelBackup[]
   recommendationFeedbacks RecommendationFeedback[]
+  reviewRecords           ReviewRecord[]
 
   @@map("novels")
 }
@@ -101,27 +106,60 @@ enum ChapterStatus {
   SCHEDULED
 }
 
+// 审核状态枚举
+enum ReviewStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  NEEDS_REVISION
+}
+
+// 审核内容类型枚举
+enum ReviewContentType {
+  NOVEL
+  CHAPTER
+  COMMENT
+}
+
+// 审核操作类型枚举
+enum ReviewActionType {
+  APPROVE
+  REJECT
+  NEEDS_REVISION
+}
+
+// 敏感词违规级别
+enum SensitiveWordLevel {
+  WARN
+  BLOCK
+}
+
 // 章节模型
 model Chapter {
-  id          Int           @id @default(autoincrement())
-  novelId     Int
-  title       String
-  content     String        @db.Text
-  order       Int
-  wordCount   Int           @default(0)
-  status      ChapterStatus @default(PUBLISHED)
-  scheduledAt DateTime?
-  publishedAt DateTime?
-  viewCount   Int           @default(0)
-  readCount   Int           @default(0)
-  finishCount Int           @default(0)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id              Int           @id @default(autoincrement())
+  novelId         Int
+  title           String
+  content         String        @db.Text
+  order           Int
+  wordCount       Int           @default(0)
+  status          ChapterStatus @default(PUBLISHED)
+  scheduledAt     DateTime?
+  publishedAt     DateTime?
+  viewCount       Int           @default(0)
+  readCount       Int           @default(0)
+  finishCount     Int           @default(0)
+  reviewStatus    ReviewStatus  @default(DRAFT)
+  rejectionReason String?       @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  submittedAt     DateTime?
 
   // 关联
-  novel      Novel      @relation(fields: [novelId], references: [id], onDelete: Cascade)
-  comments   Comment[]
-  activities Activity[]
+  novel         Novel         @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  comments      Comment[]
+  activities    Activity[]
+  reviewRecords ReviewRecord[]
 
   @@unique([novelId, order])
   @@map("chapters")
@@ -129,27 +167,31 @@ model Chapter {
 
 // 评论模型（支持段落评论）
 model Comment {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  chapterId  Int
-  content    String   @db.Text
-  paragraph  Int? // 段落索引，null 表示章节级评论
-  parentId   Int? // 父评论ID，用于回复
-  isEdited   Boolean  @default(false)
-  isPinned   Boolean  @default(false)
-  isFeatured Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id              Int         @id @default(autoincrement())
+  userId          Int
+  chapterId       Int
+  content         String      @db.Text
+  paragraph       Int? // 段落索引，null 表示章节级评论
+  parentId        Int? // 父评论ID，用于回复
+  isEdited        Boolean     @default(false)
+  isPinned        Boolean     @default(false)
+  isFeatured      Boolean     @default(false)
+  reviewStatus    ReviewStatus @default(PENDING)
+  rejectionReason String?     @db.Text
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  submittedAt     DateTime    @default(now())
 
   // 关联
-  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chapter  Chapter          @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-  parent   Comment?         @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies  Comment[]        @relation("CommentReplies")
-  likes    CommentLike[]
-  reports  CommentReport[]
-  mentions CommentMention[]
-  Activity Activity[]
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter       Chapter       @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  parent        Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies       Comment[]     @relation("CommentReplies")
+  likes         CommentLike[]
+  reports       CommentReport[]
+  mentions      CommentMention[]
+  Activity      Activity[]
+  reviewRecords ReviewRecord[]
 
   @@map("comments")
 }
@@ -657,4 +699,45 @@ model UserPreferenceCache {
   updatedAt     DateTime @updatedAt
 
   @@map("user_preference_caches")
+}
+
+// ==================== 内容审核系统相关模型 ====================
+
+// 审核记录模型
+model ReviewRecord {
+  id          Int              @id @default(autoincrement())
+  contentType ReviewContentType
+  novelId     Int?
+  chapterId   Int?
+  commentId   Int?
+  reviewerId  Int?
+  action      ReviewActionType
+  remark      String?          @db.Text
+  createdAt   DateTime         @default(now())
+
+  // 关联
+  reviewer User?    @relation("ReviewerRecords", fields: [reviewerId], references: [id], onDelete: SetNull)
+  novel    Novel?   @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  chapter  Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  comment  Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([contentType, createdAt])
+  @@index([novelId, createdAt])
+  @@index([chapterId, createdAt])
+  @@index([commentId, createdAt])
+  @@map("review_records")
+}
+
+// 敏感词库模型
+model SensitiveWord {
+  id        Int                @id @default(autoincrement())
+  word      String             @unique
+  level     SensitiveWordLevel @default(WARN)
+  category  String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([word])
+  @@index([level])
+  @@map("sensitive_words")
 }

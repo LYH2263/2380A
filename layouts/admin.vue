@@ -37,6 +37,22 @@
           <span>用户管理</span>
         </NuxtLink>
         <NuxtLink
+          to="/admin/review"
+          class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition"
+          active-class="bg-white/10 text-neuro-primary"
+        >
+          <Icon name="ph:list-checks" />
+          <span>内容审核</span>
+        </NuxtLink>
+        <NuxtLink
+          to="/admin/sensitive-words"
+          class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition"
+          active-class="bg-white/10 text-neuro-primary"
+        >
+          <Icon name="ph:shield-warning" />
+          <span>敏感词管理</span>
+        </NuxtLink>
+        <NuxtLink
           to="/admin/reports"
           class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition"
           active-class="bg-white/10 text-neuro-primary"

@@ -44,6 +44,14 @@
           <Icon name="ph:chat-circle-dots" />
           <span>评论管理</span>
         </NuxtLink>
+        <NuxtLink
+          to="/author/review"
+          class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition"
+          active-class="bg-white/10 text-neuro-primary"
+        >
+          <Icon name="ph:clipboard-check" />
+          <span>审核状态</span>
+        </NuxtLink>
       </nav>
 
       <div class="absolute bottom-4 left-4 right-4">

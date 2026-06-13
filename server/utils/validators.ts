@@ -70,3 +70,39 @@ export const authorNovelSchema = z.object({
 export const commentReplySchema = z.object({
   content: z.string().min(1, '回复内容不能为空').max(1000, '回复最多1000字')
 })
+
+export const reviewActionSchema = z.object({
+  contentType: z.enum(['NOVEL', 'CHAPTER', 'COMMENT']),
+  contentId: z.number().int().positive(),
+  action: z.enum(['APPROVE', 'REJECT', 'NEEDS_REVISION']),
+  remark: z.string().max(500, '备注最多500字').optional()
+})
+
+export const reviewQueueQuerySchema = z.object({
+  contentType: z.enum(['NOVEL', 'CHAPTER', 'COMMENT', '']).optional().default(''),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'NEEDS_REVISION', 'DRAFT', '']).optional().default('PENDING'),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20)
+})
+
+export const reviewHistoryQuerySchema = z.object({
+  contentType: z.enum(['NOVEL', 'CHAPTER', 'COMMENT', '']).optional().default(''),
+  contentId: z.coerce.number().int().positive().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20)
+})
+
+export const sensitiveWordSchema = z.object({
+  word: z.string().min(1, '敏感词不能为空').max(50, '敏感词最多50字'),
+  level: z.enum(['WARN', 'BLOCK']).optional().default('WARN'),
+  category: z.string().max(50, '分类最多50字').optional()
+})
+
+export const sensitiveWordQuerySchema = z.object({
+  keyword: z.string().optional(),
+  level: z.enum(['WARN', 'BLOCK', '']).optional().default(''),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20)
+})

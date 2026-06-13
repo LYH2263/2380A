@@ -25,7 +25,8 @@ export default defineEventHandler(async (event) => {
           title: true,
           order: true,
           wordCount: true,
-          createdAt: true
+          createdAt: true,
+          reviewStatus: true
         }
       },
       _count: {
@@ -55,6 +56,14 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 404,
       message: '小说不存在'
+    })
+  }
+
+  const isAuthorOrAdmin = user && (novel.authorId === user.userId || user.role === 'ADMIN')
+  if (!isAuthorOrAdmin && novel.reviewStatus !== 'APPROVED') {
+    throw createError({
+      statusCode: 403,
+      message: '该小说正在审核中，暂不可见'
     })
   }
 

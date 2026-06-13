@@ -3,6 +3,7 @@ import { requireAuth } from '~/server/utils/auth'
 import { commentSchema } from '~/server/utils/validators'
 import { recordCommentPosted } from '~/server/utils/activity'
 import { extractMentionsFromContent } from '~/server/utils/commentUtils'
+import { checkSensitiveWords } from '~/server/utils/sensitiveWordFilter'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -25,6 +26,17 @@ export default defineEventHandler(async (event) => {
   }
 
   const { content, paragraph, parentId } = result.data
+
+  const sensitiveResult = await checkSensitiveWords(content)
+  if (sensitiveResult.shouldBlock) {
+    const blockedWords = sensitiveResult.matchedWords.filter((w: any) => w.level === 'BLOCK').map((w: any) => w.word)
+    throw createError({
+      statusCode: 400,
+      message: `评论包含违禁敏感词：${blockedWords.join('、')}，无法提交`
+    })
+  }
+
+  const reviewStatus = 'PENDING'
 
   // 检查章节是否存在
   const chapter = await prisma.chapter.findUnique({
@@ -71,6 +83,7 @@ export default defineEventHandler(async (event) => {
       content,
       paragraph: paragraph ?? null,
       parentId: parentId ?? null,
+      reviewStatus,
       mentions: {
         create: mentionedUsers.map(u => ({
           userId: u.id
@@ -84,7 +97,15 @@ export default defineEventHandler(async (event) => {
     }
   })
 
-  recordCommentPosted(user.userId, chapter.novel.id, chapterId, comment.id, chapter.novel.title, chapter.title)
+  if (reviewStatus === 'APPROVED') {
+    recordCommentPosted(user.userId, chapter.novel.id, chapterId, comment.id, chapter.novel.title, chapter.title)
+  }
 
-  return { success: true, comment }
+  return {
+    success: true,
+    comment,
+    warning: sensitiveResult.hasSensitiveWords
+      ? `评论包含敏感词：${sensitiveResult.matchedWords.map((w: any) => w.word).join('、')}，已自动进入人工审核`
+      : null
+  }
 })

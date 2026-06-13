@@ -29,6 +29,8 @@ export default defineEventHandler(async (event) => {
     where.status = status
   }
 
+  where.reviewStatus = 'APPROVED'
+
   const orderBy: any = {}
   switch (sort) {
     case 'popular':

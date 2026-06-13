@@ -30,6 +30,7 @@ export default defineEventHandler(async (event) => {
         select: {
           id: true,
           title: true,
+          reviewStatus: true,
           author: {
             select: { id: true, username: true, avatar: true }
           }
@@ -50,7 +51,7 @@ export default defineEventHandler(async (event) => {
           },
           _count: { select: { likes: true } }
         },
-        where: { parentId: null },
+        where: { parentId: null, reviewStatus: 'APPROVED' },
         orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }]
       }
     }
@@ -64,6 +65,18 @@ export default defineEventHandler(async (event) => {
   }
 
   if (!isAuthorOrAdmin) {
+    if (chapter.novel.reviewStatus !== 'APPROVED') {
+      throw createError({
+        statusCode: 403,
+        message: '该小说正在审核中，暂不可见'
+      })
+    }
+    if (chapter.reviewStatus !== 'APPROVED') {
+      throw createError({
+        statusCode: 403,
+        message: '该章节正在审核中，暂不可见'
+      })
+    }
     const now = new Date()
     if (chapter.status === 'DRAFT') {
       throw createError({
@@ -82,9 +95,14 @@ export default defineEventHandler(async (event) => {
   const chapterFilter: any = { novelId }
   if (!isAuthorOrAdmin) {
     const now = new Date()
-    chapterFilter.OR = [
-      { status: 'PUBLISHED' },
-      { status: 'SCHEDULED', scheduledAt: { lte: now } }
+    chapterFilter.AND = [
+      { reviewStatus: 'APPROVED' },
+      {
+        OR: [
+          { status: 'PUBLISHED' },
+          { status: 'SCHEDULED', scheduledAt: { lte: now }
+        ]
+      }
     ]
   }
 
