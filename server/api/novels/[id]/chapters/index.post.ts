@@ -1,6 +1,7 @@
 import prisma from '~/server/utils/prisma'
 import { requireAuth } from '~/server/utils/auth'
 import { chapterSchema } from '~/server/utils/validators'
+import { recordChapterPublished } from '~/server/utils/activity'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -17,7 +18,7 @@ export default defineEventHandler(async (event) => {
   // 检查小说权限
   const novel = await prisma.novel.findUnique({
     where: { id: novelId },
-    select: { authorId: true }
+    select: { authorId: true, title: true }
   })
 
   if (!novel) {
@@ -65,6 +66,8 @@ export default defineEventHandler(async (event) => {
       wordCount
     }
   })
+
+  recordChapterPublished(user.userId, novelId, chapter.id, novel.title, chapter.title)
 
   return { success: true, chapter }
 })

@@ -1,6 +1,7 @@
 import prisma from '~/server/utils/prisma'
 import { requireAuth } from '~/server/utils/auth'
 import { ratingSchema } from '~/server/utils/validators'
+import { recordRatingSubmitted } from '~/server/utils/activity'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -51,6 +52,8 @@ export default defineEventHandler(async (event) => {
       score
     }
   })
+
+  recordRatingSubmitted(user.userId, novelId, rating.id, novel.title, score)
 
   // 计算新的平均评分
   const ratings = await prisma.rating.findMany({

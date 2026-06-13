@@ -1,6 +1,7 @@
 import prisma from '~/server/utils/prisma'
 import { requireAuth } from '~/server/utils/auth'
 import { novelSchema } from '~/server/utils/validators'
+import { recordNovelPublished } from '~/server/utils/activity'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -31,6 +32,8 @@ export default defineEventHandler(async (event) => {
       }
     }
   })
+
+  recordNovelPublished(user.userId, novel.id, novel.title)
 
   return { success: true, novel }
 })

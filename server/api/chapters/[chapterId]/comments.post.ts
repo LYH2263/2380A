@@ -1,6 +1,7 @@
 import prisma from '~/server/utils/prisma'
 import { requireAuth } from '~/server/utils/auth'
 import { commentSchema } from '~/server/utils/validators'
+import { recordCommentPosted } from '~/server/utils/activity'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -26,7 +27,12 @@ export default defineEventHandler(async (event) => {
 
   // 检查章节是否存在
   const chapter = await prisma.chapter.findUnique({
-    where: { id: chapterId }
+    where: { id: chapterId },
+    include: {
+      novel: {
+        select: { id: true, title: true }
+      }
+    }
   })
 
   if (!chapter) {
@@ -63,6 +69,8 @@ export default defineEventHandler(async (event) => {
       }
     }
   })
+
+  recordCommentPosted(user.userId, chapter.novel.id, chapterId, comment.id, chapter.novel.title, chapter.title)
 
   return { success: true, comment }
 })

@@ -15,6 +15,7 @@ model User {
   username  String   @unique
   password  String
   avatar    String?
+  bio       String?  @db.Text
   role      Role     @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -24,8 +25,11 @@ model User {
   likes       Like[]
   comments    Comment[]
   ratings     Rating[]
-  novels      Novel[]    @relation("AuthorNovels")
+  novels      Novel[]       @relation("AuthorNovels")
   readHistory ReadHistory[]
+  following   Follow[]      @relation("UserFollows")
+  followers   Follow[]      @relation("UserFollowers")
+  activities  Activity[]
 
   @@map("users")
 }
@@ -37,24 +41,25 @@ enum Role {
 
 // 小说模型
 model Novel {
-  id          Int      @id @default(autoincrement())
+  id          Int         @id @default(autoincrement())
   title       String
-  description String   @db.Text
+  description String      @db.Text
   cover       String?
   authorId    Int
   status      NovelStatus @default(ONGOING)
   tags        String[]
-  viewCount   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  viewCount   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   // 关联
-  author    User       @relation("AuthorNovels", fields: [authorId], references: [id])
-  chapters  Chapter[]
-  favorites Favorite[]
-  likes     Like[]
-  ratings   Rating[]
+  author      User          @relation("AuthorNovels", fields: [authorId], references: [id])
+  chapters    Chapter[]
+  favorites   Favorite[]
+  likes       Like[]
+  ratings     Rating[]
   readHistory ReadHistory[]
+  activities  Activity[]
 
   @@map("novels")
 }
@@ -77,8 +82,9 @@ model Chapter {
   updatedAt DateTime @updatedAt
 
   // 关联
-  novel    Novel     @relation(fields: [novelId], references: [id], onDelete: Cascade)
-  comments Comment[]
+  novel      Novel      @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  comments   Comment[]
+  activities Activity[]
 
   @@unique([novelId, order])
   @@map("chapters")
@@ -86,20 +92,21 @@ model Chapter {
 
 // 评论模型（支持段落评论）
 model Comment {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  chapterId  Int
-  content    String   @db.Text
-  paragraph  Int?     // 段落索引，null 表示章节级评论
-  parentId   Int?     // 父评论ID，用于回复
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  chapterId Int
+  content   String   @db.Text
+  paragraph Int? // 段落索引，null 表示章节级评论
+  parentId  Int? // 父评论ID，用于回复
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // 关联
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chapter  Chapter   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies  Comment[] @relation("CommentReplies")
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter  Chapter    @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  parent   Comment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[]  @relation("CommentReplies")
+  Activity Activity[]
 
   @@map("comments")
 }
@@ -139,13 +146,14 @@ model Rating {
   id        Int      @id @default(autoincrement())
   userId    Int
   novelId   Int
-  score     Int      // 1-5 分
+  score     Int // 1-5 分
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // 关联
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel      Novel      @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  activities Activity[]
 
   @@unique([userId, novelId])
   @@map("ratings")
@@ -167,4 +175,50 @@ model ReadHistory {
 
   @@unique([userId, novelId])
   @@map("read_history")
+}
+
+// 关注模型
+model Follow {
+  id          Int      @id @default(autoincrement())
+  followerId  Int
+  followingId Int
+  createdAt   DateTime @default(now())
+
+  // 关联
+  follower  User @relation("UserFollows", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+// 动态类型枚举
+enum ActivityType {
+  NOVEL_PUBLISHED
+  CHAPTER_PUBLISHED
+  COMMENT_POSTED
+  RATING_SUBMITTED
+}
+
+// 用户动态模型
+model Activity {
+  id        Int          @id @default(autoincrement())
+  userId    Int
+  type      ActivityType
+  novelId   Int?
+  chapterId Int?
+  commentId Int?
+  ratingId  Int?
+  metadata  String?      @db.Text
+  createdAt DateTime     @default(now())
+
+  // 关联
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel   Novel?   @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  rating  Rating?  @relation(fields: [ratingId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("activities")
 }
