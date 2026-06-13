@@ -73,3 +73,50 @@
 ::selection {
   @apply bg-neuro-primary/30;
 }
+
+/* 主题样式覆盖 - 羊皮纸主题 */
+.theme-parchment {
+  color: #292524;
+}
+
+.theme-parchment .glass {
+  @apply bg-stone-100/80 border-stone-300/50;
+  backdrop-filter: blur(20px);
+}
+
+.theme-parchment .card {
+  @apply bg-stone-50/80 border-stone-300/50;
+  color: #292524;
+}
+
+.theme-parchment .btn-secondary {
+  @apply bg-stone-200/50 border-stone-300 text-stone-700;
+}
+
+.theme-parchment .btn-secondary:hover {
+  @apply bg-stone-300/50 border-stone-400;
+}
+
+.theme-parchment .input-field {
+  @apply bg-stone-200/50 border-stone-300 text-stone-800 placeholder-stone-500;
+}
+
+.theme-parchment .input-field:focus {
+  @apply ring-neuro-primary/50 border-neuro-primary;
+}
+
+.theme-parchment .skeleton {
+  @apply bg-stone-300/50;
+}
+
+.theme-parchment ::-webkit-scrollbar-track {
+  @apply bg-stone-200/50;
+}
+
+.theme-parchment .prose-novel {
+  @apply text-stone-700;
+}
+
+.theme-parchment .prose-novel p {
+  @apply hover:bg-stone-900/5;
+}
