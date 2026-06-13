@@ -21,15 +21,18 @@ model User {
   updatedAt DateTime @updatedAt
 
   // 关联
-  favorites   Favorite[]
-  likes       Like[]
-  comments    Comment[]
-  ratings     Rating[]
-  novels      Novel[]       @relation("AuthorNovels")
-  readHistory ReadHistory[]
-  following   Follow[]      @relation("UserFollows")
-  followers   Follow[]      @relation("UserFollowers")
-  activities  Activity[]
+  favorites          Favorite[]
+  likes              Like[]
+  comments           Comment[]
+  commentLikes       CommentLike[]
+  commentReports     CommentReport[]
+  commentMentions    CommentMention[]
+  ratings            Rating[]
+  novels             Novel[]       @relation("AuthorNovels")
+  readHistory        ReadHistory[]
+  following          Follow[]      @relation("UserFollows")
+  followers          Follow[]      @relation("UserFollowers")
+  activities         Activity[]
 
   @@map("users")
 }
@@ -98,15 +101,19 @@ model Comment {
   content   String   @db.Text
   paragraph Int? // 段落索引，null 表示章节级评论
   parentId  Int? // 父评论ID，用于回复
+  isEdited  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // 关联
-  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chapter  Chapter    @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-  parent   Comment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies  Comment[]  @relation("CommentReplies")
-  Activity Activity[]
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter    Chapter        @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  parent     Comment?       @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    Comment[]      @relation("CommentReplies")
+  likes      CommentLike[]
+  reports    CommentReport[]
+  mentions   CommentMention[]
+  Activity   Activity[]
 
   @@map("comments")
 }
@@ -221,4 +228,68 @@ model Activity {
 
   @@index([userId, createdAt])
   @@map("activities")
+}
+
+// 评论点赞模型
+model CommentLike {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  commentId Int
+  createdAt DateTime @default(now())
+
+  // 关联
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@map("comment_likes")
+}
+
+// 评论举报状态枚举
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  IGNORED
+}
+
+// 评论举报类型枚举
+enum ReportType {
+  SPAM
+  HARASSMENT
+  HATE_SPEECH
+  EXPLICIT_CONTENT
+  OTHER
+}
+
+// 评论举报模型
+model CommentReport {
+  id        Int          @id @default(autoincrement())
+  userId    Int
+  commentId Int
+  type      ReportType
+  reason    String       @db.Text
+  status    ReportStatus @default(PENDING)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  // 关联
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@map("comment_reports")
+}
+
+// 评论@提及模型
+model CommentMention {
+  id        Int      @id @default(autoincrement())
+  commentId Int
+  userId    Int
+  createdAt DateTime @default(now())
+
+  // 关联
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@map("comment_mentions")
 }

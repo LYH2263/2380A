@@ -92,22 +92,14 @@
                   </button>
                 </div>
 
-                <div v-if="paragraphComments[index]?.length" class="space-y-3 mb-4 max-h-48 overflow-y-auto">
-                  <div
+                <div v-if="paragraphComments[index]?.length" class="space-y-2 mb-4 max-h-64 overflow-y-auto">
+                  <CommentItem
                     v-for="comment in paragraphComments[index]"
                     :key="comment.id"
-                    class="flex gap-3 text-sm"
-                  >
-                    <img
-                      :src="comment.user.avatar"
-                      :alt="comment.user.username"
-                      class="w-6 h-6 rounded-full flex-shrink-0"
-                    />
-                    <div>
-                      <span class="font-medium text-neuro-primary">{{ comment.user.username }}</span>
-                      <p class="opacity-80">{{ comment.content }}</p>
-                    </div>
-                  </div>
+                    :comment="comment"
+                    :chapter-id="chapterId"
+                    @refresh="refreshAll"
+                  />
                 </div>
 
                 <div v-if="user" class="flex gap-2">
@@ -171,15 +163,65 @@
 
       <div class="px-4 py-8">
         <div class="card p-6">
-          <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
-            <Icon name="ph:chat-circle-text" />
-            章节评论
-          </h3>
+          <div class="flex items-center justify-between mb-4 flex-wrap gap-4">
+            <h3 class="text-xl font-bold flex items-center gap-2">
+              <Icon name="ph:chat-circle-text" />
+              章节评论
+              <span v-if="pagination" class="text-sm font-normal opacity-60">
+                ({{ pagination.total }} 条)
+              </span>
+            </h3>
+
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-1 text-sm">
+                <button
+                  v-for="option in sortOptions"
+                  :key="option.value"
+                  @click="sortBy = option.value as any"
+                  :class="[
+                    'px-3 py-1.5 rounded-lg transition',
+                    sortBy === option.value
+                      ? 'bg-neuro-primary/20 text-neuro-primary'
+                      : 'opacity-60 hover:opacity-100 hover:bg-white/10'
+                  ]"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
+
+              <div class="flex items-center gap-1 text-sm border-l border-white/10 pl-3">
+                <button
+                  @click="loadMode = 'scroll'"
+                  :class="[
+                    'px-2 py-1.5 rounded-lg transition',
+                    loadMode === 'scroll'
+                      ? 'bg-neuro-primary/20 text-neuro-primary'
+                      : 'opacity-60 hover:opacity-100 hover:bg-white/10'
+                  ]"
+                  title="无限滚动"
+                >
+                  <Icon name="ph:list-dashes" />
+                </button>
+                <button
+                  @click="loadMode = 'pagination'"
+                  :class="[
+                    'px-2 py-1.5 rounded-lg transition',
+                    loadMode === 'pagination'
+                      ? 'bg-neuro-primary/20 text-neuro-primary'
+                      : 'opacity-60 hover:opacity-100 hover:bg-white/10'
+                  ]"
+                  title="分页器"
+                >
+                  <Icon name="ph:squares-four" />
+                </button>
+              </div>
+            </div>
+          </div>
 
           <div v-if="user" class="mb-6">
             <FormTextarea
               v-model="chapterComment"
-              placeholder="分享你对这一章的看法..."
+              placeholder="分享你对这一章的看法... 可以 @用户名 来提及其他用户"
               :rows="3"
             />
             <Button
@@ -196,48 +238,64 @@
             后可以发表评论
           </div>
 
-          <div v-if="chapter.comments?.length" class="space-y-4">
-            <div
-              v-for="comment in chapter.comments"
+          <div v-if="displayedComments?.length" class="space-y-4">
+            <CommentItem
+              v-for="comment in displayedComments"
               :key="comment.id"
-              class="p-4 glass rounded-xl"
-            >
-              <div class="flex items-start gap-3">
-                <img
-                  :src="comment.user.avatar"
-                  :alt="comment.user.username"
-                  class="w-10 h-10 rounded-full"
-                />
-                <div class="flex-1">
-                  <div class="flex items-center gap-2 mb-1">
-                    <span class="font-medium">{{ comment.user.username }}</span>
-                    <span class="text-xs opacity-50">{{ formatDate(comment.createdAt) }}</span>
-                  </div>
-                  <p class="opacity-80">{{ comment.content }}</p>
-
-                  <div v-if="comment.replies?.length" class="mt-3 space-y-2 pl-4 border-l-2 border-white/10">
-                    <div
-                      v-for="reply in comment.replies"
-                      :key="reply.id"
-                      class="flex items-start gap-2"
-                    >
-                      <img
-                        :src="reply.user.avatar"
-                        :alt="reply.user.username"
-                        class="w-6 h-6 rounded-full"
-                      />
-                      <div>
-                        <span class="font-medium text-sm">{{ reply.user.username }}</span>
-                        <p class="text-sm opacity-70">{{ reply.content }}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+              :comment="comment"
+              :chapter-id="chapterId"
+              @refresh="refreshAll"
+            />
           </div>
-          <div v-else class="text-center py-8 opacity-50">
+
+          <div v-else-if="!commentsPending" class="text-center py-8 opacity-50">
             暂无评论，来发表第一条评论吧！
+          </div>
+
+          <div v-if="loadMode === 'scroll' && hasMore" class="mt-6 text-center">
+            <Button
+              @click="loadMore"
+              :loading="commentsPending"
+              variant="secondary"
+            >
+              加载更多
+            </Button>
+          </div>
+
+          <div
+            v-if="loadMode === 'pagination' && pagination && pagination.totalPages > 1"
+            class="mt-6 flex items-center justify-center gap-2"
+          >
+            <button
+              @click="goToPage(pagination.page - 1)"
+              :disabled="pagination.page <= 1 || commentsPending"
+              class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              上一页
+            </button>
+            <div class="flex items-center gap-1">
+              <button
+                v-for="page in pagination.totalPages"
+                :key="page"
+                @click="goToPage(page)"
+                :class="[
+                  'w-10 h-10 rounded-lg transition text-sm font-medium',
+                  pagination.page === page
+                    ? 'bg-neuro-primary text-white'
+                    : 'bg-white/10 hover:bg-white/20'
+                ]"
+                :disabled="commentsPending"
+              >
+                {{ page }}
+              </button>
+            </div>
+            <button
+              @click="goToPage(pagination.page + 1)"
+              :disabled="pagination.page >= pagination.totalPages || commentsPending"
+              class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              下一页
+            </button>
           </div>
         </div>
       </div>
@@ -303,11 +361,12 @@ const { user } = useAuth()
 const toast = useToast()
 
 const { settings, fontFamilyMap, pageWidthMap, themeStyles, isNightMode, applyThemeToBody } = useReadingSettings()
+const { renderContentWithMentions } = useCommentUtils()
 
 const novelId = computed(() => route.params.id)
 const chapterId = computed(() => route.params.chapterId)
 
-const { data: chapter, pending, refresh } = await useFetch(
+const { data: chapter, pending, refresh: refreshChapter } = await useFetch(
   () => `/api/novels/${novelId.value}/chapters/${chapterId.value}`
 )
 
@@ -316,6 +375,67 @@ const showToc = ref(false)
 const showNextChapterPrompt = ref(false)
 const contentRef = ref<HTMLElement | null>(null)
 const paragraphRefs = ref<HTMLElement[]>([])
+
+const sortBy = ref<'newest' | 'oldest' | 'hot'>('newest')
+const loadMode = ref<'scroll' | 'pagination'>('scroll')
+const currentPage = ref(1)
+const allComments = ref<any[]>([])
+
+const sortOptions = [
+  { value: 'newest', label: '最新' },
+  { value: 'oldest', label: '最早' },
+  { value: 'hot', label: '热度' }
+]
+
+const { data: commentsData, refresh: refreshComments, pending: commentsPending } = await useFetch(
+  () => `/api/chapters/${chapterId.value}/comments`,
+  {
+    query: computed(() => ({
+      sort: sortBy.value,
+      page: currentPage.value,
+      limit: 20
+    }))
+  }
+)
+
+const chapterComments = computed(() => commentsData.value?.comments || [])
+const pagination = computed(() => commentsData.value?.pagination)
+const hasMore = computed(() => pagination.value && currentPage.value < pagination.value.totalPages)
+
+watchEffect(() => {
+  if (loadMode.value === 'scroll' && commentsData.value?.comments) {
+    if (currentPage.value === 1) {
+      allComments.value = [...commentsData.value.comments]
+    } else {
+      const existingIds = new Set(allComments.value.map(c => c.id))
+      const newComments = commentsData.value.comments.filter(
+        (c: any) => !existingIds.has(c.id)
+      )
+      allComments.value = [...allComments.value, ...newComments]
+    }
+  }
+})
+
+watch(() => sortBy.value, () => {
+  currentPage.value = 1
+  allComments.value = []
+  refreshComments()
+})
+
+watch(() => route.params.chapterId, () => {
+  showNextChapterPrompt.value = false
+  paragraphRefs.value = []
+  currentPage.value = 1
+  allComments.value = []
+  sortBy.value = 'newest'
+})
+
+const displayedComments = computed(() => {
+  if (loadMode.value === 'scroll') {
+    return allComments.value
+  }
+  return chapterComments.value
+})
 
 const contentStyle = computed(() => {
   return {
@@ -357,6 +477,26 @@ const toggleParagraphComment = (index: number) => {
   activeParagraph.value = activeParagraph.value === index ? null : index
 }
 
+const refreshAll = async () => {
+  await Promise.all([refreshChapter(), refreshComments()])
+  if (loadMode.value === 'scroll') {
+    currentPage.value = 1
+    allComments.value = []
+    await refreshComments()
+  }
+}
+
+const loadMore = async () => {
+  if (!hasMore.value || commentsPending.value) return
+  currentPage.value++
+  await refreshComments()
+}
+
+const goToPage = (page: number) => {
+  currentPage.value = page
+  refreshComments()
+}
+
 const submitComment = async (paragraphIndex: number) => {
   if (!newComment.value.trim()) return
   
@@ -370,7 +510,7 @@ const submitComment = async (paragraphIndex: number) => {
       }
     })
     newComment.value = ''
-    await refresh()
+    await refreshAll()
     toast.success('评论成功')
   } catch (e: any) {
     toast.error(e.message || '评论失败')
@@ -391,7 +531,7 @@ const submitChapterComment = async () => {
       }
     })
     chapterComment.value = ''
-    await refresh()
+    await refreshAll()
     toast.success('评论成功')
   } catch (e: any) {
     toast.error(e.message || '评论失败')
@@ -413,11 +553,6 @@ const formatDate = (date: string) => {
 const handleScrollEnd = () => {
   showNextChapterPrompt.value = true
 }
-
-watch(() => route.params.chapterId, () => {
-  showNextChapterPrompt.value = false
-  paragraphRefs.value = []
-})
 
 onMounted(() => {
   applyThemeToBody()

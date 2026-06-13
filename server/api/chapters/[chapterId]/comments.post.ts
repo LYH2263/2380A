@@ -2,6 +2,7 @@ import prisma from '~/server/utils/prisma'
 import { requireAuth } from '~/server/utils/auth'
 import { commentSchema } from '~/server/utils/validators'
 import { recordCommentPosted } from '~/server/utils/activity'
+import { extractMentionsFromContent } from '~/server/utils/commentUtils'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -55,13 +56,26 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  const mentionedUsernames = extractMentionsFromContent(content)
+  const mentionedUsers = mentionedUsernames.length > 0
+    ? await prisma.user.findMany({
+        where: { username: { in: mentionedUsernames } },
+        select: { id: true, username: true }
+      })
+    : []
+
   const comment = await prisma.comment.create({
     data: {
       userId: user.userId,
       chapterId,
       content,
       paragraph: paragraph ?? null,
-      parentId: parentId ?? null
+      parentId: parentId ?? null,
+      mentions: {
+        create: mentionedUsers.map(u => ({
+          userId: u.id
+        }))
+      }
     },
     include: {
       user: {
