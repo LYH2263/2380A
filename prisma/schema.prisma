@@ -56,13 +56,15 @@ model Novel {
   updatedAt   DateTime    @updatedAt
 
   // 关联
-  author      User          @relation("AuthorNovels", fields: [authorId], references: [id])
-  chapters    Chapter[]
-  favorites   Favorite[]
-  likes       Like[]
-  ratings     Rating[]
-  readHistory ReadHistory[]
-  activities  Activity[]
+  author          User               @relation("AuthorNovels", fields: [authorId], references: [id])
+  chapters        Chapter[]
+  favorites       Favorite[]
+  likes           Like[]
+  ratings         Rating[]
+  readHistory     ReadHistory[]
+  activities      Activity[]
+  periodStats     NovelPeriodStat[]
+  rankingSnapshots RankingSnapshot[]
 
   @@map("novels")
 }
@@ -292,4 +294,74 @@ model CommentMention {
 
   @@unique([commentId, userId])
   @@map("comment_mentions")
+}
+
+// 排行榜周期类型
+enum RankingPeriod {
+  WEEK
+  MONTH
+  ALL
+}
+
+// 排行榜类型
+enum RankingType {
+  POPULARITY
+  RATING
+  FAVORITE
+  NEW_BOOK
+  COMPLETED
+}
+
+// 小说周期统计表 - 记录周/月的增量数据
+model NovelPeriodStat {
+  id          Int           @id @default(autoincrement())
+  novelId     Int
+  period      RankingPeriod
+  periodKey   String        // 格式：WEEK-2024-W01, MONTH-2024-01
+  viewCount   Int           @default(0)
+  favoriteCount Int         @default(0)
+  ratingCount Int           @default(0)
+  ratingSum   Int           @default(0)
+  avgRating   Float         @default(0)
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([novelId, period, periodKey])
+  @@index([period, periodKey])
+  @@map("novel_period_stats")
+}
+
+// 排行榜快照表 - 记录每个周期的排名快照，用于计算排名变化
+model RankingSnapshot {
+  id          Int           @id @default(autoincrement())
+  rankingType RankingType
+  period      RankingPeriod
+  periodKey   String
+  novelId     Int
+  rank        Int
+  score       Float
+  createdAt   DateTime      @default(now())
+
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([rankingType, period, periodKey, novelId])
+  @@index([rankingType, period, periodKey, rank])
+  @@map("ranking_snapshots")
+}
+
+// 排行榜缓存表 - 预计算的榜单数据
+model RankingCache {
+  id          Int           @id @default(autoincrement())
+  rankingType RankingType
+  period      RankingPeriod
+  periodKey   String
+  data        String        @db.Text  // JSON格式的榜单数据
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([rankingType, period, periodKey])
+  @@map("ranking_caches")
 }

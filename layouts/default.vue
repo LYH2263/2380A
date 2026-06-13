@@ -30,6 +30,13 @@
             小说库
           </NuxtLink>
           <NuxtLink 
+            to="/rankings" 
+            class="text-white/70 hover:text-white transition"
+            active-class="text-white font-semibold"
+          >
+            排行榜
+          </NuxtLink>
+          <NuxtLink 
             v-if="user" 
             to="/user/favorites" 
             class="text-white/70 hover:text-white transition"
