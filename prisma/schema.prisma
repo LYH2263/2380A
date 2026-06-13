@@ -21,28 +21,33 @@ model User {
   updatedAt DateTime @updatedAt
 
   // 书架设置
-  bookshelfViewMode String @default("grid") // grid, list, compact
-  bookshelfSortBy   String @default("lastReadAt") // lastReadAt, favoritedAt, updatedAt, title
+  bookshelfViewMode  String @default("grid") // grid, list, compact
+  bookshelfSortBy    String @default("lastReadAt") // lastReadAt, favoritedAt, updatedAt, title
   bookshelfSortOrder String @default("desc") // asc, desc
 
+  // 用户引导完成状态
+  onboardingCompleted Boolean @default(false)
+
   // 关联
-  favorites          Favorite[]
-  bookLists          BookList[]
-  likes              Like[]
-  comments           Comment[]
-  commentLikes       CommentLike[]
-  commentReports     CommentReport[]
-  commentMentions    CommentMention[]
-  ratings            Rating[]
-  novels             Novel[]       @relation("AuthorNovels")
-  readHistory        ReadHistory[]
-  following          Follow[]      @relation("UserFollows")
-  followers          Follow[]      @relation("UserFollowers")
-  activities         Activity[]
-  initiatedTasks     ImportExportTask[] @relation("TaskUser")
-  adminTasks         ImportExportTask[] @relation("TaskAdmin")
-  shareLinks         ShareLink[]
-  novelBackups       NovelBackup[]
+  favorites               Favorite[]
+  bookLists               BookList[]
+  likes                   Like[]
+  comments                Comment[]
+  commentLikes            CommentLike[]
+  commentReports          CommentReport[]
+  commentMentions         CommentMention[]
+  ratings                 Rating[]
+  novels                  Novel[]                  @relation("AuthorNovels")
+  readHistory             ReadHistory[]
+  following               Follow[]                 @relation("UserFollows")
+  followers               Follow[]                 @relation("UserFollowers")
+  activities              Activity[]
+  initiatedTasks          ImportExportTask[]       @relation("TaskUser")
+  adminTasks              ImportExportTask[]       @relation("TaskAdmin")
+  shareLinks              ShareLink[]
+  novelBackups            NovelBackup[]
+  tagPreferences          UserTagPreference[]
+  recommendationFeedbacks RecommendationFeedback[]
 
   @@map("users")
 }
@@ -67,17 +72,18 @@ model Novel {
   updatedAt   DateTime    @updatedAt
 
   // 关联
-  author          User               @relation("AuthorNovels", fields: [authorId], references: [id])
-  chapters        Chapter[]
-  favorites       Favorite[]
-  likes           Like[]
-  ratings         Rating[]
-  readHistory     ReadHistory[]
-  activities      Activity[]
-  periodStats     NovelPeriodStat[]
-  rankingSnapshots RankingSnapshot[]
-  dailyStats      NovelDailyStat[]
-  backups         NovelBackup[]
+  author                  User                     @relation("AuthorNovels", fields: [authorId], references: [id])
+  chapters                Chapter[]
+  favorites               Favorite[]
+  likes                   Like[]
+  ratings                 Rating[]
+  readHistory             ReadHistory[]
+  activities              Activity[]
+  periodStats             NovelPeriodStat[]
+  rankingSnapshots        RankingSnapshot[]
+  dailyStats              NovelDailyStat[]
+  backups                 NovelBackup[]
+  recommendationFeedbacks RecommendationFeedback[]
 
   @@map("novels")
 }
@@ -97,20 +103,20 @@ enum ChapterStatus {
 
 // 章节模型
 model Chapter {
-  id             Int           @id @default(autoincrement())
-  novelId        Int
-  title          String
-  content        String        @db.Text
-  order          Int
-  wordCount      Int           @default(0)
-  status         ChapterStatus @default(PUBLISHED)
-  scheduledAt    DateTime?
-  publishedAt    DateTime?
-  viewCount      Int           @default(0)
-  readCount      Int           @default(0)
-  finishCount    Int           @default(0)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id          Int           @id @default(autoincrement())
+  novelId     Int
+  title       String
+  content     String        @db.Text
+  order       Int
+  wordCount   Int           @default(0)
+  status      ChapterStatus @default(PUBLISHED)
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  viewCount   Int           @default(0)
+  readCount   Int           @default(0)
+  finishCount Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   // 关联
   novel      Novel      @relation(fields: [novelId], references: [id], onDelete: Cascade)
@@ -136,34 +142,34 @@ model Comment {
   updatedAt  DateTime @updatedAt
 
   // 关联
-  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chapter    Chapter        @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-  parent     Comment?       @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies    Comment[]      @relation("CommentReplies")
-  likes      CommentLike[]
-  reports    CommentReport[]
-  mentions   CommentMention[]
-  Activity   Activity[]
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter  Chapter          @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  parent   Comment?         @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[]        @relation("CommentReplies")
+  likes    CommentLike[]
+  reports  CommentReport[]
+  mentions CommentMention[]
+  Activity Activity[]
 
   @@map("comments")
 }
 
 // 收藏模型
 model Favorite {
-  id              Int      @id @default(autoincrement())
-  userId          Int
-  novelId         Int
-  createdAt       DateTime @default(now())
-  readingStatus   ReadingStatus @default(UNREAD)
-  lastReadAt      DateTime?
-  lastChapterId  Int?
-  progress        Float    @default(0)
+  id                 Int           @id @default(autoincrement())
+  userId             Int
+  novelId            Int
+  createdAt          DateTime      @default(now())
+  readingStatus      ReadingStatus @default(UNREAD)
+  lastReadAt         DateTime?
+  lastChapterId      Int?
+  progress           Float         @default(0)
   lastViewedUpdateAt DateTime?
-  hasNewUpdate    Boolean  @default(false)
+  hasNewUpdate       Boolean       @default(false)
 
   // 关联
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel         Novel          @relation(fields: [novelId], references: [id], onDelete: Cascade)
   bookListItems BookListItem[]
 
   @@unique([userId, novelId])
@@ -189,9 +195,9 @@ model BookList {
   updatedAt   DateTime @updatedAt
 
   // 关联
-  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items    BookListItem[]
-  shares   ShareLink[]
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items  BookListItem[]
+  shares ShareLink[]
 
   @@unique([userId, name])
   @@index([userId, sortOrder])
@@ -393,19 +399,19 @@ enum RankingType {
 
 // 小说周期统计表 - 记录周/月的增量数据
 model NovelPeriodStat {
-  id          Int           @id @default(autoincrement())
-  novelId     Int
-  period      RankingPeriod
-  periodKey   String        // 格式：WEEK-2024-W01, MONTH-2024-01
-  viewCount   Int           @default(0)
-  favoriteCount Int         @default(0)
-  ratingCount Int           @default(0)
-  ratingSum   Int           @default(0)
-  avgRating   Float         @default(0)
-  startDate   DateTime
-  endDate     DateTime
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id            Int           @id @default(autoincrement())
+  novelId       Int
+  period        RankingPeriod
+  periodKey     String // 格式：WEEK-2024-W01, MONTH-2024-01
+  viewCount     Int           @default(0)
+  favoriteCount Int           @default(0)
+  ratingCount   Int           @default(0)
+  ratingSum     Int           @default(0)
+  avgRating     Float         @default(0)
+  startDate     DateTime
+  endDate       DateTime
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
 
@@ -438,7 +444,7 @@ model RankingCache {
   rankingType RankingType
   period      RankingPeriod
   periodKey   String
-  data        String        @db.Text  // JSON格式的榜单数据
+  data        String        @db.Text // JSON格式的榜单数据
   updatedAt   DateTime      @updatedAt
 
   @@unique([rankingType, period, periodKey])
@@ -447,17 +453,17 @@ model RankingCache {
 
 // 小说每日统计表 - 记录每日详细数据
 model NovelDailyStat {
-  id             Int      @id @default(autoincrement())
-  novelId        Int
-  date           DateTime @db.Date
-  viewCount      Int      @default(0)
-  favoriteCount  Int      @default(0)
-  commentCount   Int      @default(0)
-  chapterViewCount Int    @default(0)
-  chapterReadCount Int    @default(0)
-  chapterFinishCount Int  @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                 Int      @id @default(autoincrement())
+  novelId            Int
+  date               DateTime @db.Date
+  viewCount          Int      @default(0)
+  favoriteCount      Int      @default(0)
+  commentCount       Int      @default(0)
+  chapterViewCount   Int      @default(0)
+  chapterReadCount   Int      @default(0)
+  chapterFinishCount Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
 
@@ -493,26 +499,26 @@ model ImportExportTask {
   id             Int        @id @default(autoincrement())
   type           TaskType
   status         TaskStatus @default(PENDING)
-  userId         Int?       // 发起任务的用户ID
-  adminId        Int?       // 发起任务的管理员ID
+  userId         Int? // 发起任务的用户ID
+  adminId        Int? // 发起任务的管理员ID
   progress       Int        @default(0) // 0-100
   totalItems     Int        @default(0)
   processedItems Int        @default(0)
   fileName       String?
-  filePath       String?    // 相对于存储目录的路径
-  fileSize       Int?       // 字节
+  filePath       String? // 相对于存储目录的路径
+  fileSize       Int? // 字节
   downloadUrl    String?
-  filters        String?    // JSON格式的筛选条件
-  fields         String?    // JSON格式的导出字段
-  result         String?    // JSON格式的执行结果/错误信息
+  filters        String? // JSON格式的筛选条件
+  fields         String? // JSON格式的导出字段
+  result         String? // JSON格式的执行结果/错误信息
   errorMessage   String?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   completedAt    DateTime?
-  expiresAt      DateTime?  // 文件过期时间
+  expiresAt      DateTime? // 文件过期时间
 
-  user   User? @relation("TaskUser", fields: [userId], references: [id], onDelete: SetNull)
-  admin  User? @relation("TaskAdmin", fields: [adminId], references: [id], onDelete: SetNull)
+  user  User? @relation("TaskUser", fields: [userId], references: [id], onDelete: SetNull)
+  admin User? @relation("TaskAdmin", fields: [adminId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([adminId, createdAt])
@@ -533,10 +539,10 @@ model ShareLink {
   token       String    @unique
   type        ShareType
   userId      Int
-  bookListId  Int?      // 如果是书单分享
+  bookListId  Int? // 如果是书单分享
   title       String
   description String?   @db.Text
-  coverImage  String?   // 封面拼图URL
+  coverImage  String? // 封面拼图URL
   data        String    @db.Text // JSON格式的分享数据快照
   viewCount   Int       @default(0)
   isExpired   Boolean   @default(false)
@@ -553,19 +559,19 @@ model ShareLink {
 
 // 小说备份记录表
 model NovelBackup {
-  id         Int      @id @default(autoincrement())
-  novelId    Int
-  adminId    Int?
-  fileName   String
-  filePath   String   // 相对于存储目录的路径
-  fileSize   Int      // 字节
-  version    String   // 备份格式版本号
-  novelTitle String
-  chapterCount Int   @default(0)
-  commentCount Int   @default(0)
-  checksum   String   // 文件校验和
-  note       String?  @db.Text
-  createdAt  DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  novelId      Int
+  adminId      Int?
+  fileName     String
+  filePath     String // 相对于存储目录的路径
+  fileSize     Int // 字节
+  version      String // 备份格式版本号
+  novelTitle   String
+  chapterCount Int      @default(0)
+  commentCount Int      @default(0)
+  checksum     String // 文件校验和
+  note         String?  @db.Text
+  createdAt    DateTime @default(now())
 
   admin User?  @relation(fields: [adminId], references: [id], onDelete: SetNull)
   novel Novel? @relation(fields: [novelId], references: [id], onDelete: SetNull)
@@ -573,4 +579,82 @@ model NovelBackup {
   @@index([novelId, createdAt])
   @@index([adminId, createdAt])
   @@map("novel_backups")
+}
+
+// ==================== 推荐系统相关模型 ====================
+
+// 推荐类型枚举
+enum RecommendationType {
+  PERSONALIZED
+  SIMILAR_USERS
+  SIMILAR_TAGS
+  COLD_START
+}
+
+// 用户标签偏好表 - 用于新用户冷启动时的标签选择
+model UserTagPreference {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  tag       String
+  weight    Float    @default(1.0) // 标签权重，用于计算偏好强度
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tag])
+  @@index([userId])
+  @@map("user_tag_preferences")
+}
+
+// 推荐反馈表 - 用户对推荐的反馈（如"不感兴趣"）
+enum FeedbackType {
+  DISLIKE
+  NOT_INTERESTED
+}
+
+model RecommendationFeedback {
+  id                 Int                 @id @default(autoincrement())
+  userId             Int
+  novelId            Int
+  type               FeedbackType        @default(NOT_INTERESTED)
+  recommendationType RecommendationType?
+  createdAt          DateTime            @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, novelId, type])
+  @@index([userId])
+  @@map("recommendation_feedbacks")
+}
+
+// 推荐缓存表 - 预计算的个性化推荐结果
+enum RecommendationCacheType {
+  PERSONALIZED_FOR_YOU
+  SIMILAR_NOVEL_USERS
+  SIMILAR_NOVEL_TAGS
+}
+
+model RecommendationCache {
+  id        Int                     @id @default(autoincrement())
+  cacheType RecommendationCacheType
+  targetId  Int // userId 或 novelId
+  data      String                  @db.Text // JSON格式的推荐数据，包含推荐理由
+  updatedAt DateTime                @updatedAt
+  expiresAt DateTime?
+
+  @@unique([cacheType, targetId])
+  @@index([cacheType])
+  @@map("recommendation_caches")
+}
+
+// 用户偏好分析缓存表 - 缓存用户的标签/作者偏好统计数据
+model UserPreferenceCache {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @unique
+  tagWeights    String   @db.Text // JSON: {"tag1": 0.8, "tag2": 0.5}
+  authorWeights String   @db.Text // JSON: {"authorId1": 0.9, "authorId2": 0.3}
+  updatedAt     DateTime @updatedAt
+
+  @@map("user_preference_caches")
 }

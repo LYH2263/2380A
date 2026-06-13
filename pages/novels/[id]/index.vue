@@ -172,6 +172,151 @@
             </NuxtLink>
           </div>
         </div>
+
+        <!-- Related Recommendations -->
+        <div v-if="!recLoading && (similarUsersNovels.length > 0 || similarTagsNovels.length > 0)" class="space-y-12">
+          <!-- People Also Viewed -->
+          <section v-if="similarUsersNovels.length > 0">
+            <div class="flex items-center justify-between mb-6">
+              <h2 class="text-2xl font-bold flex items-center gap-2">
+                <Icon name="ph:users-fill" class="text-neuro-primary" />
+                看过这本书的人还看了
+              </h2>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div
+                v-for="item in similarUsersNovels"
+                :key="item.id"
+                class="card p-4 hover:bg-white/10 transition group relative"
+              >
+                <div class="flex gap-4">
+                  <NuxtLink
+                    :to="`/novels/${item.id}`"
+                    class="w-16 h-24 flex-shrink-0 rounded-lg overflow-hidden"
+                  >
+                    <img
+                      :src="item.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200'"
+                      :alt="item.title"
+                      class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    />
+                  </NuxtLink>
+                  <div class="flex-1 min-w-0">
+                    <NuxtLink
+                      :to="`/novels/${item.id}`"
+                      class="font-medium line-clamp-2 hover:text-neuro-primary transition block mb-1"
+                    >
+                      {{ item.title }}
+                    </NuxtLink>
+                    <p class="text-xs text-white/50 mb-2">{{ item.author?.username }}</p>
+                    <div class="flex items-center gap-3 text-xs text-white/50 mb-2">
+                      <span class="flex items-center gap-1">
+                        <Icon name="ph:bookmark-simple-fill" class="text-neuro-secondary" />
+                        {{ item._count?.favorites || 0 }}
+                      </span>
+                      <span class="flex items-center gap-1">
+                        <Icon name="ph:star-fill" class="text-yellow-400" />
+                        {{ item.avgRating || 0 }}
+                      </span>
+                    </div>
+                    <p
+                      v-for="(reason, idx) in item.recommendation?.reasons?.slice(0, 1)"
+                      :key="idx"
+                      class="text-xs text-neuro-primary/80 flex items-center gap-1 line-clamp-1"
+                    >
+                      <Icon name="ph:lightbulb-fill" class="flex-shrink-0" />
+                      <span class="truncate">{{ reason }}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  @click="handleNotInterested(item.id, 'SIMILAR_USERS')"
+                  class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/40 text-white/50 opacity-0 group-hover:opacity-100 hover:bg-red-500/70 hover:text-white transition-all flex items-center justify-center"
+                  title="不感兴趣"
+                >
+                  <Icon name="ph:x" class="text-xs" />
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Similar Tags -->
+          <section v-if="similarTagsNovels.length > 0">
+            <div class="flex items-center justify-between mb-6">
+              <h2 class="text-2xl font-bold flex items-center gap-2">
+                <Icon name="ph:tag-fill" class="text-neuro-accent" />
+                同类型推荐
+              </h2>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div
+                v-for="item in similarTagsNovels"
+                :key="item.id"
+                class="card p-4 hover:bg-white/10 transition group relative"
+              >
+                <div class="flex gap-4">
+                  <NuxtLink
+                    :to="`/novels/${item.id}`"
+                    class="w-16 h-24 flex-shrink-0 rounded-lg overflow-hidden"
+                  >
+                    <img
+                      :src="item.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200'"
+                      :alt="item.title"
+                      class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    />
+                  </NuxtLink>
+                  <div class="flex-1 min-w-0">
+                    <NuxtLink
+                      :to="`/novels/${item.id}`"
+                      class="font-medium line-clamp-2 hover:text-neuro-primary transition block mb-1"
+                    >
+                      {{ item.title }}
+                    </NuxtLink>
+                    <p class="text-xs text-white/50 mb-2">{{ item.author?.username }}</p>
+                    <div class="flex items-center gap-3 text-xs text-white/50 mb-2">
+                      <span class="flex items-center gap-1">
+                        <Icon name="ph:bookmark-simple-fill" class="text-neuro-secondary" />
+                        {{ item._count?.favorites || 0 }}
+                      </span>
+                      <span class="flex items-center gap-1">
+                        <Icon name="ph:star-fill" class="text-yellow-400" />
+                        {{ item.avgRating || 0 }}
+                      </span>
+                    </div>
+                    <p
+                      v-for="(reason, idx) in item.recommendation?.reasons?.slice(0, 1)"
+                      :key="idx"
+                      class="text-xs text-neuro-accent/80 flex items-center gap-1 line-clamp-1"
+                    >
+                      <Icon name="ph:lightbulb-fill" class="flex-shrink-0" />
+                      <span class="truncate">{{ reason }}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  @click="handleNotInterested(item.id, 'SIMILAR_TAGS')"
+                  class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/40 text-white/50 opacity-0 group-hover:opacity-100 hover:bg-red-500/70 hover:text-white transition-all flex items-center justify-center"
+                  title="不感兴趣"
+                >
+                  <Icon name="ph:x" class="text-xs" />
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div v-if="recLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div v-for="i in 6" :key="i" class="card p-4 animate-pulse">
+            <div class="flex gap-4">
+              <div class="w-16 h-24 bg-white/10 rounded-lg flex-shrink-0" />
+              <div class="flex-1 space-y-2">
+                <div class="h-4 bg-white/10 rounded w-3/4" />
+                <div class="h-3 bg-white/10 rounded w-1/2" />
+                <div class="h-3 bg-white/10 rounded w-2/3" />
+                <div class="h-3 bg-white/10 rounded w-1/3 mt-4" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Not Found -->
@@ -199,6 +344,9 @@ const userRating = ref(novel.value?.userRating || 0)
 const likeLoading = ref(false)
 const favoriteLoading = ref(false)
 const ratingLoading = ref(false)
+const recLoading = ref(false)
+const similarUsersNovels = ref<any[]>([])
+const similarTagsNovels = ref<any[]>([])
 
 watch(() => novel.value?.userRating, (val) => {
   userRating.value = val || 0
@@ -224,6 +372,39 @@ const formatNumber = (num: number) => {
 
 const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('zh-CN')
+}
+
+async function fetchRecommendations() {
+  if (!novelId.value) return
+  recLoading.value = true
+  try {
+    const res: any = await $fetch(`/api/recommendations/novel/${novelId.value}`)
+    similarUsersNovels.value = res.similarUsers || []
+    similarTagsNovels.value = res.similarTags || []
+  } catch (e) {
+    similarUsersNovels.value = []
+    similarTagsNovels.value = []
+  } finally {
+    recLoading.value = false
+  }
+}
+
+async function handleNotInterested(novelIdParam: number, recType: string) {
+  try {
+    await $fetch('/api/recommendations/feedback', {
+      method: 'POST',
+      body: {
+        novelId: novelIdParam,
+        type: 'NOT_INTERESTED',
+        recommendationType: recType
+      }
+    })
+    similarUsersNovels.value = similarUsersNovels.value.filter(n => n.id !== novelIdParam)
+    similarTagsNovels.value = similarTagsNovels.value.filter(n => n.id !== novelIdParam)
+    toast.success('已记录，将不再推荐此类内容')
+  } catch (e: any) {
+    toast.error(e.message || '操作失败')
+  }
 }
 
 const handleLike = async () => {
@@ -274,6 +455,16 @@ const handleRating = async () => {
   } finally {
     ratingLoading.value = false
   }
+}
+
+watch(novelId, () => {
+  if (novelId.value) {
+    fetchRecommendations()
+  }
+})
+
+if (novelId.value) {
+  fetchRecommendations()
 }
 
 useHead({

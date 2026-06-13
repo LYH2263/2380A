@@ -145,6 +145,82 @@
       </div>
     </section>
 
+    <!-- Personalized Recommendations -->
+    <section v-if="user" class="py-16">
+      <div class="container mx-auto px-4">
+        <div class="flex items-center justify-between mb-8">
+          <h2 class="text-2xl font-bold flex items-center gap-2">
+            <Icon name="ph:magic-wand-fill" class="text-neuro-accent" />
+            猜你喜欢
+          </h2>
+          <div class="flex items-center gap-4">
+            <button
+              v-if="recommendations.length > 0"
+              @click="refreshRecommendations"
+              :disabled="recLoading"
+              class="text-sm text-white/60 hover:text-neuro-primary transition flex items-center gap-1"
+            >
+              <Icon :name="recLoading ? 'ph:spinner-gap-bold' : 'ph:arrow-clockwise'" :class="recLoading ? 'animate-spin' : ''" />
+              换一批
+            </button>
+            <NuxtLink to="/novels" class="text-neuro-accent hover:underline">
+              查看更多 →
+            </NuxtLink>
+          </div>
+        </div>
+
+        <div v-if="needsOnboarding" class="card p-8 text-center">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-neuro-accent to-neuro-primary flex items-center justify-center">
+            <Icon name="ph:sparkle-fill" class="text-3xl text-white" />
+          </div>
+          <h3 class="text-xl font-bold mb-2">发现更适合你的作品</h3>
+          <p class="text-white/60 mb-6 max-w-md mx-auto">
+            花 10 秒钟选择你感兴趣的标签，我们将为你量身定制个性化推荐
+          </p>
+          <NuxtLink to="/onboarding" class="btn-primary inline-flex items-center">
+            <Icon name="ph:arrow-right" class="mr-2" />
+            开始选择
+          </NuxtLink>
+        </div>
+
+        <div v-else-if="recLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <NovelCardSkeleton v-for="i in 8" :key="i" />
+        </div>
+
+        <div v-else-if="recommendations.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div
+            v-for="novel in recommendations"
+            :key="novel.id"
+            class="relative group"
+          >
+            <NovelCard :novel="novel" />
+            <div class="mt-2 space-y-1">
+              <p
+                v-for="(reason, idx) in novel.recommendation?.reasons?.slice(0, 1)"
+                :key="idx"
+                class="text-xs text-neuro-accent/80 flex items-center gap-1"
+              >
+                <Icon name="ph:lightbulb-fill" class="flex-shrink-0" />
+                <span class="truncate">{{ reason }}</span>
+              </p>
+            </div>
+            <button
+              @click="handleNotInterested(novel.id)"
+              class="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/50 text-white/60 opacity-0 group-hover:opacity-100 hover:bg-red-500/80 hover:text-white transition-all flex items-center justify-center backdrop-blur-sm"
+              title="不感兴趣"
+            >
+              <Icon name="ph:x" class="text-sm" />
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="card p-8 text-center">
+          <Icon name="ph:book-open" class="text-5xl text-white/20 mb-4" />
+          <p class="text-white/60">暂无推荐，去看看热门小说吧！</p>
+        </div>
+      </div>
+    </section>
+
     <!-- Popular Novels -->
     <section class="py-16">
       <div class="container mx-auto px-4">
@@ -232,13 +308,17 @@
 
 <script setup lang="ts">
 const { user, fetchUser } = useAuth()
+const toast = useToast()
 
 await fetchUser()
 
 const loading = ref(true)
+const recLoading = ref(false)
 const popularNovels = ref<any[]>([])
 const latestNovels = ref<any[]>([])
 const tags = ref<any[]>([])
+const recommendations = ref<any[]>([])
+const needsOnboarding = ref(false)
 
 const rankingTabs = [
   { type: 'POPULARITY', label: '人气榜', icon: 'ph:fire-fill' },
@@ -266,6 +346,55 @@ function formatNumber(num: number): string {
   return num.toString()
 }
 
+async function fetchRecommendations() {
+  if (!user.value) return
+  recLoading.value = true
+  try {
+    const res: any = await $fetch('/api/recommendations/for-you', {
+      query: { limit: 8, _t: Date.now() }
+    })
+    recommendations.value = res.novels || []
+    needsOnboarding.value = res.needsOnboarding || false
+  } catch (e) {
+    recommendations.value = []
+  } finally {
+    recLoading.value = false
+  }
+}
+
+async function refreshRecommendations() {
+  if (!user.value) return
+  recLoading.value = true
+  try {
+    const res: any = await $fetch('/api/recommendations/for-you', {
+      query: { limit: 8, _t: Date.now(), refresh: 1 }
+    })
+    recommendations.value = res.novels || []
+    toast.success('已刷新推荐')
+  } catch (e: any) {
+    toast.error(e.message || '刷新失败')
+  } finally {
+    recLoading.value = false
+  }
+}
+
+async function handleNotInterested(novelId: number) {
+  try {
+    await $fetch('/api/recommendations/feedback', {
+      method: 'POST',
+      body: {
+        novelId,
+        type: 'NOT_INTERESTED',
+        recommendationType: 'PERSONALIZED'
+      }
+    })
+    recommendations.value = recommendations.value.filter(n => n.id !== novelId)
+    toast.success('已记录，将不再推荐此类内容')
+  } catch (e: any) {
+    toast.error(e.message || '操作失败')
+  }
+}
+
 const [popularRes, latestRes, tagsRes, rankingsRes] = await Promise.all([
   useFetch('/api/novels', { query: { sort: 'popular', limit: 4 } }),
   useFetch('/api/novels', { query: { sort: 'latest', limit: 4 } }),
@@ -278,6 +407,10 @@ latestNovels.value = latestRes.data.value?.novels || []
 tags.value = tagsRes.data.value?.tags?.slice(0, 10) || []
 homeRankings.value = rankingsRes.data.value?.rankings || {}
 loading.value = false
+
+if (user.value) {
+  fetchRecommendations()
+}
 
 useHead({
   title: 'Neurosama 粉丝小说站 - 首页',
