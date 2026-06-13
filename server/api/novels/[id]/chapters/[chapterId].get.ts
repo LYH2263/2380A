@@ -1,8 +1,10 @@
 import prisma from '~/server/utils/prisma'
+import { getAuthUser } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
   const novelId = Number(event.context.params?.id)
   const chapterId = Number(event.context.params?.chapterId)
+  const user = getAuthUser(event)
 
   if (!novelId || isNaN(novelId) || !chapterId || isNaN(chapterId)) {
     throw createError({
@@ -10,6 +12,13 @@ export default defineEventHandler(async (event) => {
       message: '无效的参数'
     })
   }
+
+  const novel = await prisma.novel.findUnique({
+    where: { id: novelId },
+    select: { authorId: true }
+  })
+
+  const isAuthorOrAdmin = user && (novel?.authorId === user.userId || user.role === 'ADMIN')
 
   const chapter = await prisma.chapter.findFirst({
     where: {
@@ -38,10 +47,11 @@ export default defineEventHandler(async (event) => {
               }
             },
             orderBy: { createdAt: 'asc' }
-          }
+          },
+          _count: { select: { likes: true } }
         },
         where: { parentId: null },
-        orderBy: { createdAt: 'desc' }
+        orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }]
       }
     }
   })
@@ -53,11 +63,35 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // 获取相邻章节
+  if (!isAuthorOrAdmin) {
+    const now = new Date()
+    if (chapter.status === 'DRAFT') {
+      throw createError({
+        statusCode: 403,
+        message: '该章节暂未发布'
+      })
+    }
+    if (chapter.status === 'SCHEDULED' && chapter.scheduledAt && new Date(chapter.scheduledAt) > now) {
+      throw createError({
+        statusCode: 403,
+        message: '该章节尚未到发布时间'
+      })
+    }
+  }
+
+  const chapterFilter: any = { novelId }
+  if (!isAuthorOrAdmin) {
+    const now = new Date()
+    chapterFilter.OR = [
+      { status: 'PUBLISHED' },
+      { status: 'SCHEDULED', scheduledAt: { lte: now } }
+    ]
+  }
+
   const [prevChapter, nextChapter] = await Promise.all([
     prisma.chapter.findFirst({
       where: {
-        novelId,
+        ...chapterFilter,
         order: { lt: chapter.order }
       },
       orderBy: { order: 'desc' },
@@ -65,7 +99,7 @@ export default defineEventHandler(async (event) => {
     }),
     prisma.chapter.findFirst({
       where: {
-        novelId,
+        ...chapterFilter,
         order: { gt: chapter.order }
       },
       orderBy: { order: 'asc' },
@@ -73,9 +107,25 @@ export default defineEventHandler(async (event) => {
     })
   ])
 
+  if (user && isAuthorOrAdmin) {
+    await prisma.chapter.update({
+      where: { id: chapterId },
+      data: { viewCount: { increment: 1 } }
+    })
+  } else if (user) {
+    await prisma.chapter.update({
+      where: { id: chapterId },
+      data: {
+        viewCount: { increment: 1 },
+        readCount: { increment: 1 }
+      }
+    })
+  }
+
   return {
     ...chapter,
     prevChapter,
     nextChapter
   }
 })
+

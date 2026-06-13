@@ -50,3 +50,23 @@ export const commentQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   paragraph: z.coerce.number().int().nonnegative().optional()
 })
+
+export const authorChapterSchema = z.object({
+  title: z.string().min(1, '章节标题不能为空'),
+  content: z.string().min(10, '章节内容至少10个字符'),
+  order: z.number().int().positive().optional(),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED']).optional(),
+  scheduledAt: z.string().datetime().optional()
+})
+
+export const authorNovelSchema = z.object({
+  title: z.string().min(1, '标题不能为空').max(100, '标题最多100字'),
+  description: z.string().min(10, '简介至少10个字符'),
+  cover: z.string().url().optional().or(z.literal('')),
+  status: z.enum(['ONGOING', 'COMPLETED', 'HIATUS']).optional(),
+  tags: z.array(z.string()).optional()
+})
+
+export const commentReplySchema = z.object({
+  content: z.string().min(1, '回复内容不能为空').max(1000, '回复最多1000字')
+})

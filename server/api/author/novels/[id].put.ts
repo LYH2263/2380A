@@ -1,13 +1,12 @@
 import prisma from '~/server/utils/prisma'
 import { requireAuth } from '~/server/utils/auth'
-import { novelSchema } from '~/server/utils/validators'
+import { authorNovelSchema } from '~/server/utils/validators'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
-  const id = Number(event.context.params?.id)
-  const body = await readBody(event)
+  const novelId = Number(event.context.params?.id)
 
-  if (!id || isNaN(id)) {
+  if (!novelId || isNaN(novelId)) {
     throw createError({
       statusCode: 400,
       message: '无效的小说ID'
@@ -15,8 +14,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const novel = await prisma.novel.findUnique({
-    where: { id },
-    select: { authorId: true }
+    where: { id: novelId }
   })
 
   if (!novel) {
@@ -26,14 +24,15 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  if (novel.authorId !== user.userId && user.role !== 'ADMIN') {
+  if (novel.authorId !== user.userId) {
     throw createError({
       statusCode: 403,
-      message: '无权编辑此小说'
+      message: '无权操作此小说'
     })
   }
 
-  const result = novelSchema.safeParse(body)
+  const body = await readBody(event)
+  const result = authorNovelSchema.safeParse(body)
   if (!result.success) {
     throw createError({
       statusCode: 400,
@@ -43,28 +42,24 @@ export default defineEventHandler(async (event) => {
 
   const { title, description, cover, status, tags } = result.data
 
-  const updateData: any = {
-    title,
-    description,
-    cover: cover || null,
-    status: status || 'ONGOING',
-    tags: tags || []
-  }
-
-  if (user.role === 'ADMIN' && typeof body.isFeatured === 'boolean') {
-    updateData.isFeatured = body.isFeatured
-  }
-
   const updatedNovel = await prisma.novel.update({
-    where: { id },
-    data: updateData,
+    where: { id: novelId },
+    data: {
+      title,
+      description,
+      cover: cover || null,
+      status: status || novel.status,
+      tags: tags || novel.tags
+    },
     include: {
       author: {
         select: { id: true, username: true, avatar: true }
+      },
+      _count: {
+        select: { chapters: true, favorites: true }
       }
     }
   })
 
   return { success: true, novel: updatedNovel }
 })
-

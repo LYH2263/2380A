@@ -85,6 +85,14 @@
                     我的书架
                   </NuxtLink>
                   <NuxtLink 
+                    to="/author" 
+                    class="block px-4 py-3 hover:bg-white/10 transition"
+                    @click="showDropdown = false"
+                  >
+                    <Icon name="ph:pen-nib" class="mr-2" />
+                    作者中心
+                  </NuxtLink>
+                  <NuxtLink 
                     v-if="user.role === 'ADMIN'"
                     to="/admin" 
                     class="block px-4 py-3 hover:bg-white/10 transition"

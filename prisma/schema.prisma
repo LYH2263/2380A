@@ -58,6 +58,7 @@ model Novel {
   status      NovelStatus @default(ONGOING)
   tags        String[]
   viewCount   Int         @default(0)
+  isFeatured  Boolean     @default(false)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -71,6 +72,7 @@ model Novel {
   activities      Activity[]
   periodStats     NovelPeriodStat[]
   rankingSnapshots RankingSnapshot[]
+  dailyStats      NovelDailyStat[]
 
   @@map("novels")
 }
@@ -81,16 +83,29 @@ enum NovelStatus {
   HIATUS
 }
 
+// 章节状态枚举
+enum ChapterStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+}
+
 // 章节模型
 model Chapter {
-  id        Int      @id @default(autoincrement())
-  novelId   Int
-  title     String
-  content   String   @db.Text
-  order     Int
-  wordCount Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             Int           @id @default(autoincrement())
+  novelId        Int
+  title          String
+  content        String        @db.Text
+  order          Int
+  wordCount      Int           @default(0)
+  status         ChapterStatus @default(PUBLISHED)
+  scheduledAt    DateTime?
+  publishedAt    DateTime?
+  viewCount      Int           @default(0)
+  readCount      Int           @default(0)
+  finishCount    Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   // 关联
   novel      Novel      @relation(fields: [novelId], references: [id], onDelete: Cascade)
@@ -103,15 +118,17 @@ model Chapter {
 
 // 评论模型（支持段落评论）
 model Comment {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  chapterId Int
-  content   String   @db.Text
-  paragraph Int? // 段落索引，null 表示章节级评论
-  parentId  Int? // 父评论ID，用于回复
-  isEdited  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  chapterId  Int
+  content    String   @db.Text
+  paragraph  Int? // 段落索引，null 表示章节级评论
+  parentId   Int? // 父评论ID，用于回复
+  isEdited   Boolean  @default(false)
+  isPinned   Boolean  @default(false)
+  isFeatured Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // 关联
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -420,4 +437,25 @@ model RankingCache {
 
   @@unique([rankingType, period, periodKey])
   @@map("ranking_caches")
+}
+
+// 小说每日统计表 - 记录每日详细数据
+model NovelDailyStat {
+  id             Int      @id @default(autoincrement())
+  novelId        Int
+  date           DateTime @db.Date
+  viewCount      Int      @default(0)
+  favoriteCount  Int      @default(0)
+  commentCount   Int      @default(0)
+  chapterViewCount Int    @default(0)
+  chapterReadCount Int    @default(0)
+  chapterFinishCount Int  @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([novelId, date])
+  @@index([novelId, date])
+  @@map("novel_daily_stats")
 }
