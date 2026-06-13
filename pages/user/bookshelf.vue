@@ -6,6 +6,13 @@
         
         <div class="flex items-center gap-3">
           <button
+            class="px-3 py-2 rounded-lg transition flex items-center gap-2 bg-white/10 hover:bg-white/20"
+            @click="showShareModal = true"
+          >
+            <Icon name="ph:share-network" class="w-5 h-5" />
+            <span class="hidden sm:inline">分享书架</span>
+          </button>
+          <button
             :class="[
               'px-3 py-2 rounded-lg transition flex items-center gap-2',
               selectMode 
@@ -179,6 +186,87 @@
       @submit="handleListFormSubmit"
     />
 
+    <!-- 分享书架模态框 -->
+    <div
+      v-if="showShareModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      @click.self="showShareModal = false"
+    >
+      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div class="p-6">
+          <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+            <Icon name="ph:share-network" class="w-6 h-6" />
+            分享我的书架
+          </h3>
+          <p class="text-gray-600 text-sm mb-4">
+            创建分享链接，将您的书架（前100本收藏）分享给好友。
+          </p>
+
+          <div v-if="!shareResult" class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium mb-2">有效期</label>
+              <select v-model="shareExpiresDays" class="w-full p-3 border rounded-lg">
+                <option :value="undefined">永久有效</option>
+                <option :value="7">7 天</option>
+                <option :value="30">30 天</option>
+                <option :value="90">90 天</option>
+              </select>
+            </div>
+
+            <button
+              @click="handleShareBookshelf"
+              :disabled="sharing"
+              class="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors font-medium"
+            >
+              {{ sharing ? '正在创建...' : '生成分享链接' }}
+            </button>
+          </div>
+
+          <div v-else class="space-y-4">
+            <div class="p-4 bg-green-50 rounded-lg border border-green-200">
+              <p class="text-sm text-green-800 font-medium mb-2">✅ 分享链接已创建</p>
+              <div class="flex items-center gap-2">
+                <input
+                  type="text"
+                  readonly
+                  :value="fullShareUrl"
+                  class="flex-1 p-2 bg-white border rounded text-sm"
+                />
+                <button
+                  @click="copyShareUrl"
+                  class="px-3 py-2 bg-gray-800 text-white rounded text-sm hover:bg-gray-700"
+                >
+                  复制
+                </button>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button
+                @click="openShareUrl"
+                class="flex-1 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+              >
+                预览链接
+              </button>
+              <button
+                @click="resetShareModal"
+                class="flex-1 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+              >
+                继续分享
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="p-4 bg-gray-50 border-t">
+          <button
+            @click="showShareModal = false"
+            class="w-full py-2 text-gray-600 hover:text-gray-800 text-sm"
+          >
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+
     <Toast ref="toast" />
   </div>
 </template>
@@ -219,6 +307,12 @@ const actionMenuPosition = ref({ x: 0, y: 0 })
 
 const showCreateListForm = ref(false)
 const editingList = ref<any>(null)
+
+const showShareModal = ref(false)
+const shareExpiresDays = ref<number | undefined>(undefined)
+const sharing = ref(false)
+const shareResult = ref<{ shareUrl: string; token: string } | null>(null)
+const fullShareUrl = computed(() => shareResult.value ? window.location.origin + shareResult.value.shareUrl : '')
 
 const viewModes = [
   { value: 'grid', label: '大图模式', icon: 'ph:squares-four' },
@@ -505,4 +599,41 @@ const handleListFormSubmit = async (formData: any) => {
 useHead({
   title: '我的书架 - Neurosama 粉丝小说站'
 })
+
+async function handleShareBookshelf() {
+  sharing.value = true
+  try {
+    const { data, error } = await useFetch('/api/share/bookshelf', {
+      method: 'POST',
+      body: { expiresInDays: shareExpiresDays.value }
+    })
+    if (error.value) {
+      toast.show(error.value.data?.message || '创建分享链接失败', 'error')
+      return
+    }
+    shareResult.value = data.value
+    toast.show('分享链接已创建', 'success')
+  } finally {
+    sharing.value = false
+  }
+}
+
+function copyShareUrl() {
+  if (!fullShareUrl.value) return
+  navigator.clipboard.writeText(fullShareUrl.value).then(() => {
+    toast.show('链接已复制到剪贴板', 'success')
+  }).catch(() => {
+    toast.show('复制失败，请手动复制', 'error')
+  })
+}
+
+function openShareUrl() {
+  if (shareResult.value?.shareUrl) {
+    window.open(shareResult.value.shareUrl, '_blank')
+  }
+}
+
+function resetShareModal() {
+  shareResult.value = null
+}
 </script>

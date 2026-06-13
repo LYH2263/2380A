@@ -44,6 +44,30 @@
           <Icon name="ph:flag" />
           <span>举报管理</span>
         </NuxtLink>
+        <NuxtLink
+          to="/admin/tasks"
+          class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition"
+          active-class="bg-white/10 text-neuro-primary"
+        >
+          <Icon name="ph:list-checks" />
+          <span>任务中心</span>
+        </NuxtLink>
+        <NuxtLink
+          to="/admin/import-export"
+          class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition"
+          active-class="bg-white/10 text-neuro-primary"
+        >
+          <Icon name="ph:arrows-left-right" />
+          <span>导入导出</span>
+        </NuxtLink>
+        <NuxtLink
+          to="/admin/backups"
+          class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition"
+          active-class="bg-white/10 text-neuro-primary"
+        >
+          <Icon name="ph:hard-drive" />
+          <span>备份管理</span>
+        </NuxtLink>
       </nav>
 
       <div class="absolute bottom-4 left-4 right-4">
