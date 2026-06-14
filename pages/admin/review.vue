@@ -171,14 +171,14 @@
                 <span>提交于 {{ formatDate(item.submittedAt) }}</span>
               </div>
 
-              <div v-if="item.rejectionReason" class="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                <p class="text-sm text-red-400">
-                  <span class="font-medium">拒绝理由：</span>{{ item.rejectionReason }}
+              <div v-if="item.rejectionReason" class="mt-3 p-3 rounded-lg" :class="item.reviewStatus === 'NEEDS_REVISION' ? 'bg-orange-500/10 border border-orange-500/30' : 'bg-red-500/10 border border-red-500/30'">
+                <p class="text-sm" :class="item.reviewStatus === 'NEEDS_REVISION' ? 'text-orange-400' : 'text-red-400'">
+                  <span class="font-medium">{{ item.reviewStatus === 'NEEDS_REVISION' ? '修改意见：' : '拒绝理由：' }}</span>{{ item.rejectionReason }}
                 </p>
               </div>
             </div>
 
-            <div v-if="item.reviewStatus === 'PENDING'" class="flex flex-col gap-2">
+            <div v-if="item.reviewStatus === 'PENDING' || item.reviewStatus === 'NEEDS_REVISION'" class="flex flex-col gap-2">
               <button
                 @click="handleApprove(item)"
                 class="btn-primary px-4 py-2 text-sm"
@@ -548,18 +548,18 @@ const fetchQueue = async () => {
   try {
     const params: any = {
       page: page.value,
-      limit: 10,
-      status: filters.value.status
+      limit: 10
     }
+    if (filters.value.status) params.status = filters.value.status
     if (filters.value.contentType) params.contentType = filters.value.contentType
     if (filters.value.startDate) params.startDate = filters.value.startDate
     if (filters.value.endDate) params.endDate = filters.value.endDate
 
     const data = await $fetch('/api/admin/review/queue', { query: params })
-    items.value = data.items
-    pagination.value = data.pagination
+    items.value = data.items || []
+    pagination.value = data.pagination || null
   } catch (e: any) {
-    toast.error(e.message || '加载失败')
+    toast.error(e.data?.message || e.message || '加载失败')
   } finally {
     loading.value = false
   }
@@ -571,10 +571,10 @@ const fetchHistory = async () => {
     const data = await $fetch('/api/admin/review/history', {
       query: { page: historyPage.value, limit: 20 }
     })
-    records.value = data.records
-    historyPagination.value = data.pagination
+    records.value = data.records || []
+    historyPagination.value = data.pagination || null
   } catch (e: any) {
-    toast.error(e.message || '加载失败')
+    toast.error(e.data?.message || e.message || '加载失败')
   } finally {
     historyLoading.value = false
   }
@@ -614,7 +614,7 @@ const handleApprove = async (item: any) => {
     toast.success('审核通过')
     fetchQueue()
   } catch (e: any) {
-    toast.error(e.message || '操作失败')
+    toast.error(e.data?.message || e.message || '操作失败')
   } finally {
     actionLoading.value = false
   }
@@ -648,7 +648,7 @@ const confirmReject = async () => {
     rejectModal.value.visible = false
     fetchQueue()
   } catch (e: any) {
-    toast.error(e.message || '操作失败')
+    toast.error(e.data?.message || e.message || '操作失败')
   } finally {
     actionLoading.value = false
   }
@@ -682,7 +682,7 @@ const confirmRevision = async () => {
     revisionModal.value.visible = false
     fetchQueue()
   } catch (e: any) {
-    toast.error(e.message || '操作失败')
+    toast.error(e.data?.message || e.message || '操作失败')
   } finally {
     actionLoading.value = false
   }

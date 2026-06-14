@@ -336,10 +336,10 @@ const fetchStatus = async () => {
     if (contentType.value) params.contentType = contentType.value
 
     const data = await $fetch('/api/author/review-status', { query: params })
-    items.value = data.items
-    pagination.value = data.pagination
+    items.value = data.items || []
+    pagination.value = data.pagination || null
   } catch (e: any) {
-    toast.error(e.message || '加载失败')
+    toast.error(e.data?.message || e.message || '加载失败')
   } finally {
     loading.value = false
   }
@@ -351,10 +351,10 @@ const fetchHistory = async () => {
     const data = await $fetch('/api/author/review-history', {
       query: { page: historyPage.value, limit: 20 }
     })
-    records.value = data.records
-    historyPagination.value = data.pagination
+    records.value = data.records || []
+    historyPagination.value = data.pagination || null
   } catch (e: any) {
-    toast.error(e.message || '加载失败')
+    toast.error(e.data?.message || e.message || '加载失败')
   } finally {
     historyLoading.value = false
   }
@@ -375,7 +375,7 @@ const handleResubmit = async (item: any) => {
     toast.success(result.warning || '已重新提交审核')
     fetchStatus()
   } catch (e: any) {
-    toast.error(e.message || '提交失败')
+    toast.error(e.data?.message || e.message || '提交失败')
   } finally {
     resubmitLoading.value[key] = false
   }

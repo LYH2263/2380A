@@ -37,61 +37,81 @@ export default defineEventHandler(async (event) => {
   }
 
   const newStatus = statusMap[action]
-
-  let content: any = null
-
-  await prisma.$transaction(async (tx: any) => {
-    if (contentType === 'NOVEL') {
-      content = await tx.novel.update({
-        where: { id: contentId },
-        data: {
-          reviewStatus: newStatus,
-          rejectionReason: action === 'REJECT' ? remark : null
-        }
-      })
-    } else if (contentType === 'CHAPTER') {
-      content = await tx.chapter.update({
-        where: { id: contentId },
-        data: {
-          reviewStatus: newStatus,
-          rejectionReason: action === 'REJECT' ? remark : null
-        }
-      })
-    } else if (contentType === 'COMMENT') {
-      content = await tx.comment.update({
-        where: { id: contentId },
-        data: {
-          reviewStatus: newStatus,
-          rejectionReason: action === 'REJECT' ? remark : null
-        }
-      })
-    }
-
-    if (!content) {
-      throw createError({
-        statusCode: 404,
-        message: '内容不存在'
-      })
-    }
-
-    const reviewRecordData: any = {
-      contentType,
-      action,
-      remark,
-      reviewerId: admin.userId
-    }
-
-    if (contentType === 'NOVEL') reviewRecordData.novelId = contentId
-    if (contentType === 'CHAPTER') reviewRecordData.chapterId = contentId
-    if (contentType === 'COMMENT') reviewRecordData.commentId = contentId
-
-    await tx.reviewRecord.create({
-      data: reviewRecordData
+  if (!newStatus) {
+    throw createError({
+      statusCode: 400,
+      message: '无效的审核操作'
     })
-  })
+  }
 
-  return {
-    success: true,
-    message: `审核${action === 'APPROVE' ? '通过' : action === 'REJECT' ? '拒绝' : '标记为需修改'}成功`
+  const rejectionReason = (action === 'REJECT' || action === 'NEEDS_REVISION') ? remark : null
+
+  try {
+    await prisma.$transaction(async (tx: any) => {
+      if (contentType === 'NOVEL') {
+        const existing = await tx.novel.findUnique({ where: { id: contentId } })
+        if (!existing) {
+          throw createError({ statusCode: 404, message: '小说不存在' })
+        }
+        await tx.novel.update({
+          where: { id: contentId },
+          data: {
+            reviewStatus: newStatus,
+            rejectionReason
+          }
+        })
+      } else if (contentType === 'CHAPTER') {
+        const existing = await tx.chapter.findUnique({ where: { id: contentId } })
+        if (!existing) {
+          throw createError({ statusCode: 404, message: '章节不存在' })
+        }
+        await tx.chapter.update({
+          where: { id: contentId },
+          data: {
+            reviewStatus: newStatus,
+            rejectionReason
+          }
+        })
+      } else if (contentType === 'COMMENT') {
+        const existing = await tx.comment.findUnique({ where: { id: contentId } })
+        if (!existing) {
+          throw createError({ statusCode: 404, message: '评论不存在' })
+        }
+        await tx.comment.update({
+          where: { id: contentId },
+          data: {
+            reviewStatus: newStatus,
+            rejectionReason
+          }
+        })
+      }
+
+      const reviewRecordData: any = {
+        contentType,
+        action,
+        remark,
+        reviewerId: admin.userId
+      }
+
+      if (contentType === 'NOVEL') reviewRecordData.novelId = contentId
+      if (contentType === 'CHAPTER') reviewRecordData.chapterId = contentId
+      if (contentType === 'COMMENT') reviewRecordData.commentId = contentId
+
+      await tx.reviewRecord.create({
+        data: reviewRecordData
+      })
+    })
+
+    return {
+      success: true,
+      message: `审核${action === 'APPROVE' ? '通过' : action === 'REJECT' ? '拒绝' : '标记为需修改'}成功`
+    }
+  } catch (error: any) {
+    if (error.statusCode) throw error
+    console.error('[Review Action API Error]', error)
+    throw createError({
+      statusCode: 500,
+      message: error.message || '审核操作失败'
+    })
   }
 })
