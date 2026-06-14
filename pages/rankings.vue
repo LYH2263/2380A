@@ -135,15 +135,15 @@
             <div class="text-right flex-shrink-0">
               <div v-if="activeTab === 'POPULARITY'" class="text-lg font-bold text-neuro-primary">
                 <Icon name="ph:eye" class="mr-1" />
-                {{ formatNumber(item.viewCount) }}
+                {{ formatNumber(getDisplayValue(item, 'viewCount')) }}
               </div>
               <div v-else-if="activeTab === 'RATING'" class="text-lg font-bold text-yellow-400">
                 <Icon name="ph:star-fill" class="mr-1" />
-                {{ item.avgRating?.toFixed(1) || '0.0' }}
+                {{ getDisplayValue(item, 'avgRating').toFixed(1) }}
               </div>
               <div v-else-if="activeTab === 'FAVORITE'" class="text-lg font-bold text-pink-400">
                 <Icon name="ph:heart-fill" class="mr-1" />
-                {{ formatNumber(item._count?.favorites || item.favoriteCount || 0) }}
+                {{ formatNumber(getDisplayValue(item, 'favoriteCount')) }}
               </div>
               <div v-else-if="activeTab === 'NEW_BOOK'" class="text-lg font-bold text-green-400">
                 <Icon name="ph:eye" class="mr-1" />
@@ -151,7 +151,7 @@
               </div>
               <div v-else-if="activeTab === 'COMPLETED'" class="text-lg font-bold text-blue-400">
                 <Icon name="ph:eye" class="mr-1" />
-                {{ formatNumber(item.viewCount) }}
+                {{ formatNumber(getDisplayValue(item, 'viewCount')) }}
               </div>
               <div class="text-xs text-white/40 mt-1">
                 {{ getStatLabel() }}
@@ -301,13 +301,28 @@ function updateUrl() {
   })
 }
 
+function getDisplayValue(item: any, field: string): number {
+  if (activePeriod.value === 'ALL') {
+    if (field === 'viewCount') return item.viewCount || 0
+    if (field === 'avgRating') return item.avgRating || 0
+    if (field === 'favoriteCount') return item._count?.favorites || 0
+  } else {
+    if (field === 'viewCount') return item.periodViewCount || item.viewCount || 0
+    if (field === 'avgRating') return item.periodAvgRating || item.avgRating || 0
+    if (field === 'favoriteCount') return item.periodFavoriteCount || item.favoriteCount || item._count?.favorites || 0
+  }
+  return 0
+}
+
 function getStatLabel(): string {
+  const periodPrefix = activePeriod.value === 'WEEK' ? '本周' : 
+                       activePeriod.value === 'MONTH' ? '本月' : '总'
   switch (activeTab.value) {
-    case 'POPULARITY': return '阅读量'
-    case 'RATING': return '平均评分'
-    case 'FAVORITE': return '收藏数'
+    case 'POPULARITY': return `${periodPrefix}阅读量`
+    case 'RATING': return `${periodPrefix}平均评分`
+    case 'FAVORITE': return `${periodPrefix}收藏数`
     case 'NEW_BOOK': return '阅读量'
-    case 'COMPLETED': return '阅读量'
+    case 'COMPLETED': return `${periodPrefix}阅读量`
     default: return ''
   }
 }

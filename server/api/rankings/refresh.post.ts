@@ -1,6 +1,6 @@
 import prisma from '~/server/utils/prisma'
 import { getAuthUser } from '~/server/utils/auth'
-import { computeRanking, getPeriodKey, RANKING_TYPES, RANKING_PERIODS } from '~/server/utils/ranking'
+import { computeRanking, getPeriodKey, getRankingCacheKey, updatePeriodStats, RANKING_TYPES, RANKING_PERIODS } from '~/server/utils/ranking'
 
 export default defineEventHandler(async (event) => {
   const user = getAuthUser(event)
@@ -20,6 +20,17 @@ export default defineEventHandler(async (event) => {
   const rankingTypes = type ? [type] : Object.values(RANKING_TYPES)
   const periods = period ? [period] : Object.values(RANKING_PERIODS)
 
+  for (const rPeriod of periods) {
+    if (rPeriod === 'WEEK' || rPeriod === 'MONTH') {
+      const periodKey = getPeriodKey(rPeriod as any, now)
+      try {
+        await updatePeriodStats(rPeriod as any, periodKey)
+      } catch (error) {
+        console.error(`Error updating period stats for ${rPeriod} ${periodKey}:`, error)
+      }
+    }
+  }
+
   const results: Record<string, any> = {}
 
   for (const rType of rankingTypes) {
@@ -28,28 +39,29 @@ export default defineEventHandler(async (event) => {
     for (const rPeriod of periods) {
       if (!Object.values(RANKING_PERIODS).includes(rPeriod as any)) continue
 
-      const periodKey = getPeriodKey(rPeriod as any, now)
-      const rankings = await computeRanking(rType as any, rPeriod as any, periodKey, 100)
+      const basePeriodKey = getPeriodKey(rPeriod as any, now)
+      const cacheKey = getRankingCacheKey(rPeriod as any, basePeriodKey)
+      const rankings = await computeRanking(rType as any, rPeriod as any, basePeriodKey, 100)
 
       await prisma.rankingCache.upsert({
         where: {
           rankingType_period_periodKey: {
             rankingType: rType as any,
             period: rPeriod as any,
-            periodKey
+            periodKey: cacheKey
           }
         },
         update: { data: JSON.stringify(rankings) },
         create: {
           rankingType: rType as any,
           period: rPeriod as any,
-          periodKey,
+          periodKey: cacheKey,
           data: JSON.stringify(rankings)
         }
       })
 
       if (!results[rType]) results[rType] = {}
-      results[rType][rPeriod] = { count: rankings.length, periodKey }
+      results[rType][rPeriod] = { count: rankings.length, periodKey: basePeriodKey, cacheKey }
     }
   }
 

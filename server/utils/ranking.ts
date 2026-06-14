@@ -59,11 +59,10 @@ export function getPeriodKey(period: RankingPeriod, date: Date): string {
 }
 
 export function getPreviousPeriodKey(period: RankingPeriod, periodKey: string): string | null {
-  if (period === 'ALL') return null
-
   const date = new Date()
-  if (period === 'WEEK') {
-    const [yearStr, weekStr] = periodKey.split('-W')
+  if (period === 'WEEK' || period === 'ALL') {
+    const key = period === 'ALL' ? getWeekKey(date) : periodKey
+    const [yearStr, weekStr] = key.split('-W')
     const year = parseInt(yearStr)
     const week = parseInt(weekStr)
     
@@ -134,6 +133,66 @@ export function getPeriodDateRange(period: RankingPeriod, periodKey: string): { 
   return { start: new Date(0), end: new Date() }
 }
 
+export async function updatePeriodStats(
+  period: RankingPeriod,
+  periodKey: string
+): Promise<void> {
+  const { start, end } = getPeriodDateRange(period, periodKey)
+
+  const novels = await prisma.novel.findMany({
+    include: {
+      _count: { select: { chapters: true, favorites: true, ratings: true } },
+      readHistory: {
+        where: { updatedAt: { gte: start, lte: end } }
+      },
+      favorites: {
+        where: { createdAt: { gte: start, lte: end } }
+      },
+      ratings: {
+        where: { createdAt: { gte: start, lte: end } },
+        select: { score: true }
+      }
+    }
+  })
+
+  for (const novel of novels) {
+    const viewCount = novel.readHistory.length
+    const favoriteCount = novel.favorites.length
+    const ratingCount = novel.ratings.length
+    const ratingSum = novel.ratings.reduce((sum: number, r: any) => sum + r.score, 0)
+    const avgRating = ratingCount > 0 ? ratingSum / ratingCount : 0
+
+    await prisma.novelPeriodStat.upsert({
+      where: {
+        novelId_period_periodKey: {
+          novelId: novel.id,
+          period,
+          periodKey
+        }
+      },
+      update: {
+        viewCount,
+        favoriteCount,
+        ratingCount,
+        ratingSum,
+        avgRating
+      },
+      create: {
+        novelId: novel.id,
+        period,
+        periodKey,
+        viewCount,
+        favoriteCount,
+        ratingCount,
+        ratingSum,
+        avgRating,
+        startDate: start,
+        endDate: end
+      }
+    })
+  }
+}
+
 export async function computeRanking(
   rankingType: RankingType,
   period: RankingPeriod,
@@ -146,19 +205,19 @@ export async function computeRanking(
 
   switch (rankingType) {
     case 'POPULARITY':
-      novels = await computePopularityRanking(period, start, end, limit)
+      novels = await computePopularityRanking(period, periodKey, start, end, limit)
       break
     case 'RATING':
-      novels = await computeRatingRanking(period, start, end, limit)
+      novels = await computeRatingRanking(period, periodKey, start, end, limit)
       break
     case 'FAVORITE':
-      novels = await computeFavoriteRanking(period, start, end, limit)
+      novels = await computeFavoriteRanking(period, periodKey, start, end, limit)
       break
     case 'NEW_BOOK':
       novels = await computeNewBookRanking(limit)
       break
     case 'COMPLETED':
-      novels = await computeCompletedRanking(period, start, end, limit)
+      novels = await computeCompletedRanking(period, periodKey, start, end, limit)
       break
   }
 
@@ -167,6 +226,7 @@ export async function computeRanking(
 
 async function computePopularityRanking(
   period: RankingPeriod,
+  periodKey: string,
   start: Date,
   end: Date,
   limit: number
@@ -182,25 +242,36 @@ async function computePopularityRanking(
     })
   }
 
-  return prisma.novel.findMany({
+  const stats = await prisma.novelPeriodStat.findMany({
     where: {
-      readHistory: {
-        some: {
-          updatedAt: { gte: start, lte: end }
-        }
-      }
+      period,
+      periodKey,
+      viewCount: { gt: 0 }
     },
     orderBy: { viewCount: 'desc' },
     take: limit,
     include: {
-      author: { select: { id: true, username: true, avatar: true } },
-      _count: { select: { chapters: true, favorites: true } }
+      novel: {
+        include: {
+          author: { select: { id: true, username: true, avatar: true } },
+          _count: { select: { chapters: true, favorites: true } }
+        }
+      }
     }
   })
+
+  return stats.map(stat => ({
+    ...stat.novel,
+    periodViewCount: stat.viewCount,
+    periodFavoriteCount: stat.favoriteCount,
+    periodRatingCount: stat.ratingCount,
+    periodAvgRating: stat.avgRating
+  }))
 }
 
 async function computeRatingRanking(
   period: RankingPeriod,
+  periodKey: string,
   start: Date,
   end: Date,
   limit: number
@@ -230,38 +301,36 @@ async function computeRatingRanking(
       .slice(0, limit)
   }
 
-  const novels = await prisma.novel.findMany({
+  const stats = await prisma.novelPeriodStat.findMany({
     where: {
-      ratings: {
-        some: { createdAt: { gte: start, lte: end } }
-      }
+      period,
+      periodKey,
+      ratingCount: { gte: minRatingCount }
     },
+    orderBy: { avgRating: 'desc' },
+    take: limit,
     include: {
-      author: { select: { id: true, username: true, avatar: true } },
-      _count: { select: { chapters: true, favorites: true } },
-      ratings: {
-        where: { createdAt: { gte: start, lte: end } },
-        select: { score: true }
+      novel: {
+        include: {
+          author: { select: { id: true, username: true, avatar: true } },
+          _count: { select: { chapters: true, favorites: true } }
+        }
       }
-    },
-    take: limit * 2
+    }
   })
 
-  return novels
-    .map(novel => {
-      const ratingCount = novel.ratings.length
-      const avgRating = ratingCount > 0
-        ? novel.ratings.reduce((sum: number, r: any) => sum + r.score, 0) / ratingCount
-        : 0
-      return { ...novel, avgRating, ratingCount }
-    })
-    .filter(n => n.ratingCount >= minRatingCount)
-    .sort((a, b) => b.avgRating - a.avgRating)
-    .slice(0, limit)
+  return stats.map(stat => ({
+    ...stat.novel,
+    avgRating: stat.avgRating,
+    ratingCount: stat.ratingCount,
+    periodViewCount: stat.viewCount,
+    periodFavoriteCount: stat.favoriteCount
+  }))
 }
 
 async function computeFavoriteRanking(
   period: RankingPeriod,
+  periodKey: string,
   start: Date,
   end: Date,
   limit: number
@@ -277,24 +346,31 @@ async function computeFavoriteRanking(
     })
   }
 
-  const novels = await prisma.novel.findMany({
+  const stats = await prisma.novelPeriodStat.findMany({
     where: {
-      favorites: { some: { createdAt: { gte: start, lte: end } } }
+      period,
+      periodKey,
+      favoriteCount: { gt: 0 }
     },
+    orderBy: { favoriteCount: 'desc' },
+    take: limit,
     include: {
-      author: { select: { id: true, username: true, avatar: true } },
-      _count: { select: { chapters: true, ratings: true } },
-      favorites: {
-        where: { createdAt: { gte: start, lte: end } }
+      novel: {
+        include: {
+          author: { select: { id: true, username: true, avatar: true } },
+          _count: { select: { chapters: true, ratings: true } }
+        }
       }
-    },
-    take: limit * 2
+    }
   })
 
-  return novels
-    .map(novel => ({ ...novel, favoriteCount: novel.favorites.length }))
-    .sort((a, b) => b.favoriteCount - a.favoriteCount)
-    .slice(0, limit)
+  return stats.map(stat => ({
+    ...stat.novel,
+    favoriteCount: stat.favoriteCount,
+    periodViewCount: stat.viewCount,
+    periodRatingCount: stat.ratingCount,
+    periodAvgRating: stat.avgRating
+  }))
 }
 
 async function computeNewBookRanking(limit: number): Promise<any[]> {
@@ -316,6 +392,7 @@ async function computeNewBookRanking(limit: number): Promise<any[]> {
 
 async function computeCompletedRanking(
   period: RankingPeriod,
+  periodKey: string,
   start: Date,
   end: Date,
   limit: number
@@ -332,18 +409,40 @@ async function computeCompletedRanking(
     })
   }
 
-  return prisma.novel.findMany({
+  const stats = await prisma.novelPeriodStat.findMany({
     where: {
-      status: 'COMPLETED',
-      updatedAt: { gte: start, lte: end }
+      period,
+      periodKey,
+      viewCount: { gt: 0 },
+      novel: { status: 'COMPLETED' }
     },
     orderBy: { viewCount: 'desc' },
     take: limit,
     include: {
-      author: { select: { id: true, username: true, avatar: true } },
-      _count: { select: { chapters: true, favorites: true, ratings: true } }
+      novel: {
+        include: {
+          author: { select: { id: true, username: true, avatar: true } },
+          _count: { select: { chapters: true, favorites: true, ratings: true } }
+        }
+      }
     }
   })
+
+  return stats.map(stat => ({
+    ...stat.novel,
+    periodViewCount: stat.viewCount,
+    periodFavoriteCount: stat.favoriteCount,
+    periodRatingCount: stat.ratingCount,
+    periodAvgRating: stat.avgRating
+  }))
+}
+
+export function getRankingCacheKey(period: RankingPeriod, baseKey: string): string {
+  if (period === 'ALL') {
+    const weekKey = getWeekKey(new Date())
+    return `all-${weekKey}`
+  }
+  return baseKey
 }
 
 export async function getRankingWithTrend(
@@ -353,8 +452,10 @@ export async function getRankingWithTrend(
   limit: number = 20
 ): Promise<{ items: any[]; total: number; page: number; limit: number; periodKey: string }> {
   const now = new Date()
-  const currentPeriodKey = getPeriodKey(period, now)
-  const prevPeriodKey = getPreviousPeriodKey(period, currentPeriodKey)
+  const basePeriodKey = getPeriodKey(period, now)
+  const currentCacheKey = getRankingCacheKey(period, basePeriodKey)
+  const prevBaseKey = getPreviousPeriodKey(period, basePeriodKey)
+  const prevCacheKey = prevBaseKey ? getRankingCacheKey(period, prevBaseKey) : null
 
   let currentRankings: any[] = []
   const cached = await prisma.rankingCache.findUnique({
@@ -362,7 +463,7 @@ export async function getRankingWithTrend(
       rankingType_period_periodKey: {
         rankingType,
         period,
-        periodKey: currentPeriodKey
+        periodKey: currentCacheKey
       }
     }
   })
@@ -370,33 +471,36 @@ export async function getRankingWithTrend(
   if (cached) {
     currentRankings = JSON.parse(cached.data)
   } else {
-    currentRankings = await computeRanking(rankingType, period, currentPeriodKey, 100)
+    if (period === 'WEEK' || period === 'MONTH') {
+      await updatePeriodStats(period, basePeriodKey)
+    }
+    currentRankings = await computeRanking(rankingType, period, basePeriodKey, 100)
     await prisma.rankingCache.upsert({
       where: {
         rankingType_period_periodKey: {
           rankingType,
           period,
-          periodKey: currentPeriodKey
+          periodKey: currentCacheKey
         }
       },
       update: { data: JSON.stringify(currentRankings) },
       create: {
         rankingType,
         period,
-        periodKey: currentPeriodKey,
+        periodKey: currentCacheKey,
         data: JSON.stringify(currentRankings)
       }
     })
   }
 
   let prevRankMap: Record<number, number> = {}
-  if (prevPeriodKey) {
+  if (prevCacheKey) {
     const prevCached = await prisma.rankingCache.findUnique({
       where: {
         rankingType_period_periodKey: {
           rankingType,
           period,
-          periodKey: prevPeriodKey
+          periodKey: prevCacheKey
         }
       }
     })
@@ -446,7 +550,7 @@ export async function getRankingWithTrend(
     total,
     page,
     limit,
-    periodKey: currentPeriodKey
+    periodKey: basePeriodKey
   }
 }
 
