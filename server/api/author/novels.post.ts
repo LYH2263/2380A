@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const reviewStatus = sensitiveResult.hasSensitiveWords ? 'PENDING' : 'PENDING'
+  const reviewStatus = sensitiveResult.hasSensitiveWords ? 'PENDING' : 'APPROVED'
 
   const novel = await prisma.novel.create({
     data: {

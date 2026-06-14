@@ -1,6 +1,7 @@
 import prisma from '~/server/utils/prisma'
 import { requireAuth } from '~/server/utils/auth'
 import { authorNovelSchema } from '~/server/utils/validators'
+import { checkSensitiveWords } from '~/server/utils/sensitiveWordFilter'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -42,6 +43,32 @@ export default defineEventHandler(async (event) => {
 
   const { title, description, cover, status, tags } = result.data
 
+  const contentChanged = title !== novel.title || description !== novel.description ||
+    JSON.stringify(tags || []) !== JSON.stringify(novel.tags)
+
+  let reviewStatus = novel.reviewStatus
+  let warning: string | null = null
+
+  if (contentChanged) {
+    const contentToCheck = `${title} ${description} ${tags?.join(' ') || ''}`
+    const sensitiveResult = await checkSensitiveWords(contentToCheck)
+
+    if (sensitiveResult.shouldBlock) {
+      const blockedWords = sensitiveResult.matchedWords.filter(w => w.level === 'BLOCK').map(w => w.word)
+      throw createError({
+        statusCode: 400,
+        message: `内容包含违禁敏感词：${blockedWords.join('、')}，无法保存`
+      })
+    }
+
+    if (sensitiveResult.hasSensitiveWords) {
+      reviewStatus = 'PENDING'
+      warning = `内容包含敏感词：${sensitiveResult.matchedWords.map(w => w.word).join('、')}，已自动进入人工审核`
+    } else if (novel.reviewStatus !== 'REJECTED') {
+      reviewStatus = 'APPROVED'
+    }
+  }
+
   const updatedNovel = await prisma.novel.update({
     where: { id: novelId },
     data: {
@@ -49,7 +76,8 @@ export default defineEventHandler(async (event) => {
       description,
       cover: cover || null,
       status: status || novel.status,
-      tags: tags || novel.tags
+      tags: tags || novel.tags,
+      reviewStatus
     },
     include: {
       author: {
@@ -61,5 +89,5 @@ export default defineEventHandler(async (event) => {
     }
   })
 
-  return { success: true, novel: updatedNovel }
+  return { success: true, novel: updatedNovel, warning }
 })

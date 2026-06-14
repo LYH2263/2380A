@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    reviewStatus = 'PENDING'
+    reviewStatus = sensitiveResult.hasSensitiveWords ? 'PENDING' : 'APPROVED'
     submittedAt = new Date()
 
     if (sensitiveResult.hasSensitiveWords) {
