@@ -44,13 +44,33 @@ export const excelUtils = {
     const mapping: Record<string, number> = {}
     const missing: string[] = []
 
-    const headerLower = headers.map(h => h?.toString().trim().toLowerCase() ?? '')
+    function normalizeHeader(h: string): string {
+      return h
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/\s*\*$/, '')
+        .replace(/\s*\([^)]*\)\s*$/, '')
+        .trim()
+    }
+
+    const headerNormalized = headers.map(h => normalizeHeader(h ?? ''))
 
     for (const col of requiredColumns) {
-      const idx = headerLower.indexOf(col.label.toLowerCase())
+      const target = normalizeHeader(col.label)
+      const idx = headerNormalized.indexOf(target)
       if (idx === -1) {
-        if (col.required) {
-          missing.push(col.label)
+        const fuzzyIdx = headerNormalized.findIndex(h =>
+          h === target ||
+          h.includes(target) ||
+          target.includes(h)
+        )
+        if (fuzzyIdx === -1) {
+          if (col.required) {
+            missing.push(col.label)
+          }
+        } else {
+          mapping[col.key] = fuzzyIdx
         }
       } else {
         mapping[col.key] = idx
@@ -70,6 +90,16 @@ export const excelUtils = {
       if (!row || row.every(cell => cell === null || cell === undefined || cell === '')) {
         continue
       }
+
+      const isExampleRow = row.some(cell => {
+        const str = String(cell ?? '').trim()
+        if (!str) return false
+        if (str.startsWith('[示例]') || str.startsWith('示例')) return true
+        if (str.startsWith('💡') || str.startsWith('使用说明')) return true
+        if (str.includes('使用说明') && str.includes('必填项')) return true
+        return false
+      })
+      if (isExampleRow) continue
 
       const rowData: Record<string, any> = {}
       let rowHasError = false
@@ -185,7 +215,7 @@ export const excelUtils = {
     }
 
     return {
-      success: errors.length === 0,
+      success: validRows > 0,
       data,
       errors,
       totalRows: rows.length,
@@ -254,11 +284,15 @@ export const excelUtils = {
         case 'date': return new Date().toISOString().split('T')[0]
         case 'enum': return col.enumValues?.[0] ?? ''
         case 'string':
-        default: return `示例${col.label}`
+        default: return `[示例] ${col.label}填写说明`
       }
     })
 
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, exampleRow])
+    const noteRow = columns.map((_, i) => i === 0
+      ? '💡 使用说明：以上为示例数据，请删除此两行后按格式填写真实数据，带 * 号的列为必填项'
+      : '')
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, noteRow, exampleRow])
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
     return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
