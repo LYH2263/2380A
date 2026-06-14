@@ -119,7 +119,7 @@
         </button>
         <button
           class="px-3 py-1.5 bg-white/10 rounded-lg text-xs hover:bg-white/20 transition"
-          @click.stop="(e) => $emit('more', item, e)"
+          @click.stop="handleMoreClick"
         >
           <Icon name="ph:dots-three-vertical" />
         </button>
@@ -235,7 +235,7 @@
             </button>
             <button
               class="px-3 py-1.5 bg-white/10 rounded-lg text-sm hover:bg-white/20 transition"
-              @click="(e) => $emit('more', item, e)"
+              @click="handleMoreClick"
             >
               <Icon name="ph:dots-three-vertical" />
             </button>
@@ -288,7 +288,7 @@
         </button>
         <button
           class="p-2 rounded-lg hover:bg-white/10 transition"
-          @click="(e) => $emit('more', item, e)"
+          @click="handleMoreClick"
         >
           <Icon name="ph:dots-three-vertical" class="w-4 h-4" />
         </button>
@@ -426,11 +426,15 @@ const handleBookClick = () => {
   if (props.item.hasNewUpdate) {
     $fetch(`/api/user/bookshelf/${props.item.novelId}/clear-update`, {
       method: 'POST'
-    })
+    }).catch(() => {})
   }
 }
 
 const handleContinueReading = () => {
   emit('continue-reading', props.item)
+}
+
+const handleMoreClick = (event: MouseEvent) => {
+  emit('more', props.item, event)
 }
 </script>
