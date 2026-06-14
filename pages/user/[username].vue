@@ -14,48 +14,46 @@
         </NuxtLink>
       </div>
 
-      <div v-else class="space-y-8">
+      <div v-else-if="profile" class="space-y-8">
         <div class="card p-8">
           <div class="flex flex-col md:flex-row items-center md:items-start gap-6">
             <img
-              :src="userData?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + userData?.username"
-              :alt="userData?.username"
+              :src="profile.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + profile.username"
+              :alt="profile.username"
               class="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-neuro-primary/30 shadow-xl"
             />
             <div class="flex-1 text-center md:text-left">
               <div class="flex flex-col md:flex-row md:items-center gap-4 mb-4">
                 <h1 class="text-2xl md:text-3xl font-bold">
-                  {{ userData?.username }}
-                  <span v-if="userData?.role === 'ADMIN'" class="ml-2 px-2 py-0.5 bg-neuro-primary/30 text-neuro-primary text-xs rounded-full">
+                  {{ profile.username }}
+                  <span v-if="profile.role === 'ADMIN'" class="ml-2 px-2 py-0.5 bg-neuro-primary/30 text-neuro-primary text-xs rounded-full">
                     管理员
                   </span>
                 </h1>
                 <div class="flex items-center justify-center md:justify-start gap-3">
                   <NuxtLink
-                    v-if="!isOwnProfile"
-                    :to="`/user/${userData?.username}/following`"
+                    :to="`/user/${profile.username}/following`"
                     class="text-white/60 hover:text-neuro-primary transition"
                   >
-                    关注 <span class="font-semibold text-white">{{ userData?.stats.followingCount }}</span>
+                    关注 <span class="font-semibold text-white">{{ profile.stats.followingCount }}</span>
                   </NuxtLink>
                   <span class="text-white/20">|</span>
                   <NuxtLink
-                    v-if="!isOwnProfile"
-                    :to="`/user/${userData?.username}/followers`"
+                    :to="`/user/${profile.username}/followers`"
                     class="text-white/60 hover:text-neuro-primary transition"
                   >
-                    粉丝 <span class="font-semibold text-white">{{ userData?.stats.followersCount }}</span>
+                    粉丝 <span class="font-semibold text-white">{{ profile.stats.followersCount }}</span>
                   </NuxtLink>
                 </div>
               </div>
 
               <div class="flex items-center justify-center md:justify-start gap-2 text-white/50 text-sm mb-4">
                 <Icon name="ph:calendar" />
-                <span>注册于 {{ formatDate(userData?.createdAt) }}</span>
+                <span>注册于 {{ formatDate(profile.createdAt) }}</span>
               </div>
 
-              <p v-if="userData?.bio" class="text-white/70 max-w-2xl mb-4">
-                {{ userData?.bio }}
+              <p v-if="profile.bio" class="text-white/70 max-w-2xl mb-4">
+                {{ profile.bio }}
               </p>
               <p v-else class="text-white/40 italic mb-4">
                 这个人很懒，什么都没写...
@@ -63,15 +61,15 @@
 
               <div class="flex flex-wrap gap-4 justify-center md:justify-start">
                 <div class="glass px-4 py-2 rounded-xl">
-                  <div class="text-2xl font-bold text-neuro-primary">{{ userData?.stats.novelsCount }}</div>
+                  <div class="text-2xl font-bold text-neuro-primary">{{ profile.stats.novelsCount }}</div>
                   <div class="text-xs text-white/50">投稿小说</div>
                 </div>
                 <div class="glass px-4 py-2 rounded-xl">
-                  <div class="text-2xl font-bold text-pink-400">{{ userData?.stats.totalLikes }}</div>
+                  <div class="text-2xl font-bold text-pink-400">{{ profile.stats.totalLikes }}</div>
                   <div class="text-xs text-white/50">获得点赞</div>
                 </div>
                 <div class="glass px-4 py-2 rounded-xl">
-                  <div class="text-2xl font-bold text-yellow-400">{{ userData?.stats.totalFavorites }}</div>
+                  <div class="text-2xl font-bold text-yellow-400">{{ profile.stats.totalFavorites }}</div>
                   <div class="text-xs text-white/50">获得收藏</div>
                 </div>
               </div>
@@ -79,13 +77,13 @@
 
             <div v-if="!isOwnProfile" class="flex flex-col gap-2">
               <Button
-                :variant="userData?.isFollowing ? 'secondary' : 'primary'"
+                :variant="profile.isFollowing ? 'secondary' : 'primary'"
                 :loading="followLoading"
                 @click="handleFollow"
               >
                 <span class="flex items-center gap-2">
-                  <Icon :name="userData?.isFollowing ? 'ph:user-check' : 'ph:user-plus'" />
-                  {{ userData?.isFollowing ? '已关注' : '关注' }}
+                  <Icon :name="profile.isFollowing ? 'ph:user-check' : 'ph:user-plus'" />
+                  {{ profile.isFollowing ? '已关注' : '关注' }}
                 </span>
               </Button>
             </div>
@@ -195,6 +193,8 @@ const { data: activitiesData, pending: activitiesPending } = await useFetch(
 
 const followLoading = ref(false)
 
+const profile = computed(() => userData.value?.user || null)
+
 const isOwnProfile = computed(() => {
   return currentUser.value?.username === username.value
 })
@@ -283,6 +283,6 @@ const handleFollow = async () => {
 }
 
 useHead(() => ({
-  title: `${userData.value?.username || '用户'} 的主页 - Neurosama 粉丝小说站`
+  title: `${profile.value?.username || '用户'} 的主页 - Neurosama 粉丝小说站`
 }))
 </script>

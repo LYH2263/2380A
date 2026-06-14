@@ -54,11 +54,17 @@
                 @click="showDropdown = !showDropdown"
                 class="flex items-center gap-2 hover:opacity-80 transition"
               >
-                <img 
-                  :src="user.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'" 
-                  :alt="user.username"
-                  class="w-8 h-8 rounded-full border-2 border-neuro-primary"
-                />
+                <NuxtLink 
+                  :to="`/user/${user.username}`"
+                  class="flex items-center"
+                  @click.stop
+                >
+                  <img 
+                    :src="user.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'" 
+                    :alt="user.username"
+                    class="w-8 h-8 rounded-full border-2 border-neuro-primary"
+                  />
+                </NuxtLink>
                 <span class="hidden md:block text-sm">{{ user.username }}</span>
                 <Icon name="ph:caret-down" class="text-white/70" />
               </button>
@@ -76,6 +82,14 @@
                   v-if="showDropdown"
                   class="absolute right-0 mt-2 w-48 glass rounded-xl shadow-xl overflow-hidden"
                 >
+                  <NuxtLink 
+                    :to="`/user/${user.username}`"
+                    class="block px-4 py-3 hover:bg-white/10 transition"
+                    @click="showDropdown = false"
+                  >
+                    <Icon name="ph:user-circle" class="mr-2" />
+                    个人中心
+                  </NuxtLink>
                   <NuxtLink 
                     to="/user/bookshelf" 
                     class="block px-4 py-3 hover:bg-white/10 transition"
