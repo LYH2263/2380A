@@ -360,7 +360,7 @@ const route = useRoute()
 const { user } = useAuth()
 const toast = useToast()
 
-const { settings, fontFamilyMap, pageWidthMap, themeStyles, isNightMode, applyThemeToBody } = useReadingSettings()
+const { settings, fontFamilyCss, pageWidthMap, themeStyles, isNightMode, applyThemeToBody, restoreTheme } = useReadingSettings()
 const { renderContentWithMentions } = useCommentUtils()
 
 const novelId = computed(() => Number(route.params.id))
@@ -478,7 +478,7 @@ const displayedComments = computed(() => {
 const contentStyle = computed(() => {
   return {
     fontSize: settings.value.fontSize + 'px',
-    fontFamily: fontFamilyMap.value[settings.value.fontFamily],
+    fontFamily: fontFamilyCss.value,
     lineHeight: settings.value.lineHeight.toString()
   }
 })
@@ -594,6 +594,10 @@ const handleScrollEnd = () => {
 
 onMounted(() => {
   applyThemeToBody()
+})
+
+onUnmounted(() => {
+  restoreTheme()
 })
 
 useHead({

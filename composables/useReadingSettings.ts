@@ -22,6 +22,9 @@ const defaultSettings: ReadingSettings = {
 
 const settings = ref<ReadingSettings>({ ...defaultSettings })
 const isDark = ref(false)
+const originalBodyClasses = ref<string[]>([])
+const originalHtmlClasses = ref<string[]>([])
+const themeApplied = ref(false)
 
 export function useReadingSettings() {
   if (process.client) {
@@ -54,9 +57,23 @@ export function useReadingSettings() {
 
   const fontFamilyMap: Record<string, string> = {
     system: 'Inter, system-ui, sans-serif',
-    song: '"SimSun", "宋体", "Source Han Serif SC", serif',
-    kai: '"KaiTi", "楷体", "STKaiti", cursive'
+    song: 'SimSun, 宋体, Source Han Serif SC, serif',
+    kai: 'KaiTi, 楷体, STKaiti, cursive'
   }
+
+  const fontFamilyCss = computed(() => {
+    const font = fontFamilyMap[settings.value.fontFamily]
+    if (settings.value.fontFamily === 'system') {
+      return font
+    }
+    const fonts = font.split(', ').map(f => {
+      if (f.includes(' ') && !f.includes('"') && !f.includes("'")) {
+        return `"${f}"`
+      }
+      return f
+    })
+    return fonts.join(', ')
+  })
 
   const pageWidthMap: Record<string, string> = {
     narrow: 'max-w-2xl',
@@ -134,20 +151,35 @@ export function useReadingSettings() {
     return settings.value.theme
   })
 
+  const saveOriginalClasses = () => {
+    if (!process.client) return
+    const body = document.body
+    const html = document.documentElement
+    originalBodyClasses.value = [...body.classList]
+    originalHtmlClasses.value = [...html.classList]
+  }
+
   const applyThemeToBody = () => {
     if (!process.client) return
+    
+    if (!themeApplied.value) {
+      saveOriginalClasses()
+      themeApplied.value = true
+    }
+    
     const theme = effectiveTheme.value
     const body = document.body
     const html = document.documentElement
     
-    body.classList.remove(
+    const themeBgClasses = [
       'from-slate-900', 'via-purple-900', 'to-slate-900',
       'from-emerald-950', 'via-green-900', 'to-emerald-950',
       'from-amber-100', 'via-orange-100', 'to-amber-200',
       'from-gray-950', 'via-zinc-900', 'to-gray-950',
       'bg-gradient-to-br'
-    )
+    ]
     
+    body.classList.remove(...themeBgClasses)
     html.classList.remove('theme-default', 'theme-eye-care', 'theme-parchment', 'theme-night')
     html.classList.add(`theme-${theme}`)
     
@@ -162,31 +194,58 @@ export function useReadingSettings() {
     classes.forEach(cls => body.classList.add(cls))
   }
 
+  const restoreTheme = () => {
+    if (!process.client || !themeApplied.value) return
+    
+    const body = document.body
+    const html = document.documentElement
+    
+    body.className = ''
+    originalBodyClasses.value.forEach(cls => body.classList.add(cls))
+    
+    html.classList.remove('theme-default', 'theme-eye-care', 'theme-parchment', 'theme-night')
+    originalHtmlClasses.value.forEach(cls => html.classList.add(cls))
+    
+    themeApplied.value = false
+  }
+
   if (process.client) {
     checkSystemDark()
     if (window.matchMedia) {
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', checkSystemDark)
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        checkSystemDark()
+        if (themeApplied.value) {
+          applyThemeToBody()
+        }
+      })
     }
   }
 
   watch(isNightMode, () => {
-    applyThemeToBody()
-  }, { immediate: true })
+    if (themeApplied.value) {
+      applyThemeToBody()
+    }
+  })
 
   watch(() => settings.value.theme, () => {
-    applyThemeToBody()
+    if (themeApplied.value) {
+      applyThemeToBody()
+    }
   })
 
   return {
     settings,
     fontFamilyMap,
+    fontFamilyCss,
     pageWidthMap,
     themeStyles,
     isNightMode,
     isLightTheme,
     effectiveTheme,
+    themeApplied,
     updateSettings,
     resetSettings,
-    applyThemeToBody
+    applyThemeToBody,
+    restoreTheme
   }
 }
