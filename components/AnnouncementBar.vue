@@ -29,9 +29,8 @@
 
         <div class="flex-1 overflow-hidden relative h-10">
           <div
-            class="absolute whitespace-nowrap py-2.5 animate-marquee"
+            class="absolute whitespace-nowrap py-2.5 animate-marquee cursor-pointer hover:text-neuro-primary transition"
             @click="openDetailModal(currentAnnouncement)"
-            class="cursor-pointer hover:text-neuro-primary transition"
           >
             <span
               v-for="(announcement, idx) in announcements"

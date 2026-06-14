@@ -210,7 +210,7 @@ async function computeRatingRanking(
   if (period === 'ALL') {
     const novels = await prisma.novel.findMany({
       where: {
-        ratings: { _count: { gte: minRatingCount } }
+        ratings: { some: {} }
       },
       include: {
         author: { select: { id: true, username: true, avatar: true } },
@@ -233,8 +233,7 @@ async function computeRatingRanking(
   const novels = await prisma.novel.findMany({
     where: {
       ratings: {
-        some: { createdAt: { gte: start, lte: end } },
-        _count: { gte: minRatingCount }
+        some: { createdAt: { gte: start, lte: end } }
       }
     },
     include: {

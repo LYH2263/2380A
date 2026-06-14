@@ -1,11 +1,16 @@
 import prisma from './prisma'
 import storage from './storage'
 import taskManager from './taskManager'
-import archiver from 'archiver'
-import unzipper from 'unzipper'
+import * as archiverModule from 'archiver'
+import * as unzipperModule from 'unzipper'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+
+// archiver / unzipper 是 CommonJS 模块。被 rollup 内联打包后，其导出会被包裹在
+// default 上（也可能直接是命名空间本身），这里做兼容取值，避免默认导入报错。
+const archiver: any = (archiverModule as any).default || archiverModule
+const unzipper: any = (unzipperModule as any).default || unzipperModule
 
 const BACKUP_VERSION = '1.0.0'
 const CHUNK_SIZE = 200

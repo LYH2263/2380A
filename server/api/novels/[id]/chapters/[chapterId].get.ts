@@ -100,7 +100,7 @@ export default defineEventHandler(async (event) => {
       {
         OR: [
           { status: 'PUBLISHED' },
-          { status: 'SCHEDULED', scheduledAt: { lte: now }
+          { status: 'SCHEDULED', scheduledAt: { lte: now } }
         ]
       }
     ]
