@@ -70,7 +70,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (user) {
-    include.eventVotes = {
+    include.votes = {
       where: { userId: user.userId },
       select: { id: true }
     }
@@ -89,8 +89,8 @@ export default defineEventHandler(async (event) => {
 
   const participationsWithVoted = participations.map(p => ({
     ...p,
-    hasVoted: user ? (p as any).eventVotes?.length > 0 : false,
-    eventVotes: undefined
+    hasVoted: user ? (p as any).votes?.length > 0 : false,
+    votes: undefined
   }))
 
   return {
