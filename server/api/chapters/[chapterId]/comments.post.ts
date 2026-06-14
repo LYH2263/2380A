@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const reviewStatus = 'PENDING'
+  const reviewStatus = sensitiveResult.hasSensitiveWords ? 'PENDING' : 'APPROVED'
 
   // 检查章节是否存在
   const chapter = await prisma.chapter.findUnique({

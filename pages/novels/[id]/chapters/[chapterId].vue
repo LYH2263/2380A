@@ -99,6 +99,8 @@
                     :comment="comment"
                     :chapter-id="chapterId"
                     @refresh="refreshAll"
+                    @deleted="handleCommentDeleted"
+                    @reply-added="handleReplyAdded"
                   />
                 </div>
 
@@ -167,8 +169,8 @@
             <h3 class="text-xl font-bold flex items-center gap-2">
               <Icon name="ph:chat-circle-text" />
               章节评论
-              <span v-if="pagination" class="text-sm font-normal opacity-60">
-                ({{ pagination.total }} 条)
+              <span class="text-sm font-normal opacity-60">
+                ({{ totalComments }} 条)
               </span>
             </h3>
 
@@ -245,6 +247,8 @@
               :comment="comment"
               :chapter-id="chapterId"
               @refresh="refreshAll"
+              @deleted="handleCommentDeleted"
+              @reply-added="handleReplyAdded"
             />
           </div>
 
@@ -409,6 +413,8 @@ const sortBy = ref<'newest' | 'oldest' | 'hot'>('newest')
 const loadMode = ref<'scroll' | 'pagination'>('scroll')
 const currentPage = ref(1)
 const allComments = ref<any[]>([])
+const totalComments = ref(0)
+const replyCountMap = ref<Record<number, number>>({})
 
 const sortOptions = [
   { value: 'newest', label: '最新' },
@@ -431,8 +437,12 @@ const chapterComments = computed(() => commentsData.value?.comments || [])
 const pagination = computed(() => commentsData.value?.pagination)
 const hasMore = computed(() => pagination.value && currentPage.value < pagination.value.totalPages)
 
-watchEffect(() => {
-  if (loadMode.value === 'scroll' && commentsData.value?.comments) {
+const syncFromServer = () => {
+  if (!commentsData.value) return
+  if (commentsData.value.pagination) {
+    totalComments.value = commentsData.value.pagination.total
+  }
+  if (loadMode.value === 'scroll') {
     if (currentPage.value === 1) {
       allComments.value = [...commentsData.value.comments]
     } else {
@@ -443,6 +453,10 @@ watchEffect(() => {
       allComments.value = [...allComments.value, ...newComments]
     }
   }
+}
+
+watchEffect(() => {
+  syncFromServer()
 })
 
 watch(() => sortBy.value, () => {
@@ -456,6 +470,7 @@ watch(() => route.params.chapterId, () => {
   paragraphRefs.value = []
   currentPage.value = 1
   allComments.value = []
+  totalComments.value = 0
   sortBy.value = 'newest'
   updateReadingProgress()
   clearUpdateNotification()
@@ -474,6 +489,89 @@ const displayedComments = computed(() => {
   }
   return chapterComments.value
 })
+
+const buildOptimisticComment = (rawComment: any, isReply: boolean = false) => {
+  return {
+    ...rawComment,
+    likeCount: 0,
+    replyCount: 0,
+    isLiked: false,
+    isEdited: false,
+    replies: [],
+    _count: undefined,
+    likes: undefined,
+    ...(isReply ? {} : {})
+  }
+}
+
+const addNewComment = (rawComment: any, isReply: boolean = false, parentId?: number) => {
+  const newComment = buildOptimisticComment(rawComment, isReply)
+
+  if (isReply && parentId) {
+    const updateReplies = (list: any[]): boolean => {
+      for (let i = 0; i < list.length; i++) {
+        if (list[i].id === parentId) {
+          list[i].replies = list[i].replies || []
+          list[i].replies.push(newComment)
+          list[i].replyCount = (list[i].replyCount || 0) + 1
+          return true
+        }
+        if (list[i].replies?.length && updateReplies(list[i].replies)) {
+          return true
+        }
+      }
+      return false
+    }
+    if (loadMode.value === 'scroll') {
+      updateReplies(allComments.value)
+    }
+  } else {
+    totalComments.value++
+    if (loadMode.value === 'scroll') {
+      if (sortBy.value === 'newest') {
+        allComments.value.unshift(newComment)
+      } else {
+        allComments.value.push(newComment)
+      }
+    } else if (loadMode.value === 'pagination' && currentPage.value === 1) {
+      if (sortBy.value === 'newest') {
+        allComments.value = [newComment, ...commentsData.value.comments.slice(0, 19)]
+      }
+    }
+  }
+}
+
+const removeCommentById = (commentId: number, isReply: boolean = false, parentId?: number) => {
+  if (!isReply) {
+    totalComments.value = Math.max(0, totalComments.value - 1)
+  }
+
+  if (isReply && parentId) {
+    const removeFromReplies = (list: any[]): boolean => {
+      for (let i = 0; i < list.length; i++) {
+        if (list[i].id === parentId && list[i].replies) {
+          const before = list[i].replies.length
+          list[i].replies = list[i].replies.filter((r: any) => r.id !== commentId)
+          if (list[i].replies.length < before) {
+            list[i].replyCount = Math.max(0, (list[i].replyCount || 0) - 1)
+            return true
+          }
+        }
+        if (list[i].replies?.length && removeFromReplies(list[i].replies)) {
+          return true
+        }
+      }
+      return false
+    }
+    if (loadMode.value === 'scroll') {
+      removeFromReplies(allComments.value)
+    }
+  } else {
+    if (loadMode.value === 'scroll') {
+      allComments.value = allComments.value.filter(c => c.id !== commentId)
+    }
+  }
+}
 
 const contentStyle = computed(() => {
   return {
@@ -516,12 +614,9 @@ const toggleParagraphComment = (index: number) => {
 }
 
 const refreshAll = async () => {
+  currentPage.value = 1
+  allComments.value = []
   await Promise.all([refreshChapter(), refreshComments()])
-  if (loadMode.value === 'scroll') {
-    currentPage.value = 1
-    allComments.value = []
-    await refreshComments()
-  }
 }
 
 const loadMore = async () => {
@@ -535,12 +630,20 @@ const goToPage = (page: number) => {
   refreshComments()
 }
 
+const handleCommentDeleted = (commentId: number, isReply: boolean = false, parentId?: number) => {
+  removeCommentById(commentId, isReply, parentId)
+}
+
+const handleReplyAdded = (rawReply: any, parentId: number) => {
+  addNewComment(rawReply, true, parentId)
+}
+
 const submitComment = async (paragraphIndex: number) => {
   if (!newComment.value.trim()) return
   
   commentLoading.value = true
   try {
-    await $fetch(`/api/chapters/${chapterId.value}/comments`, {
+    const result: any = await $fetch(`/api/chapters/${chapterId.value}/comments`, {
       method: 'POST',
       body: {
         content: newComment.value,
@@ -548,8 +651,15 @@ const submitComment = async (paragraphIndex: number) => {
       }
     })
     newComment.value = ''
-    await refreshAll()
-    toast.success('评论成功')
+    if (result.comment && result.comment.reviewStatus === 'APPROVED') {
+      addNewComment(result.comment, false)
+    }
+    if (result.warning) {
+      toast.warning(result.warning)
+    } else {
+      toast.success('评论成功')
+    }
+    refreshChapter()
   } catch (e: any) {
     toast.error(e.message || '评论失败')
   } finally {
@@ -562,15 +672,22 @@ const submitChapterComment = async () => {
   
   chapterCommentLoading.value = true
   try {
-    await $fetch(`/api/chapters/${chapterId.value}/comments`, {
+    const result: any = await $fetch(`/api/chapters/${chapterId.value}/comments`, {
       method: 'POST',
       body: {
         content: chapterComment.value
       }
     })
     chapterComment.value = ''
-    await refreshAll()
-    toast.success('评论成功')
+    if (result.comment && result.comment.reviewStatus === 'APPROVED') {
+      addNewComment(result.comment, false)
+    }
+    if (result.warning) {
+      toast.warning(result.warning)
+    } else {
+      toast.success('评论成功')
+    }
+    refreshChapter()
   } catch (e: any) {
     toast.error(e.message || '评论失败')
   } finally {

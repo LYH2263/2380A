@@ -155,6 +155,8 @@
             :is-reply="true"
             :chapter-id="chapterId"
             @refresh="$emit('refresh')"
+            @deleted="(id, isReply, parentId) => $emit('deleted', id, isReply, parentId)"
+            @reply-added="(r, pid) => $emit('reply-added', r, pid)"
           />
         </div>
       </div>
@@ -171,6 +173,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'refresh'): void
+  (e: 'deleted', commentId: number, isReply: boolean, parentId?: number): void
+  (e: 'reply-added', reply: any, parentId: number): void
 }>()
 
 const { user } = useAuth()
@@ -245,7 +249,7 @@ const submitReply = async () => {
   const content = `@${props.comment.user.username} ${replyContent.value.trim()}`
   replyLoading.value = true
   try {
-    await $fetch(`/api/chapters/${props.chapterId}/comments`, {
+    const result: any = await $fetch(`/api/chapters/${props.chapterId}/comments`, {
       method: 'POST',
       body: {
         content,
@@ -254,8 +258,14 @@ const submitReply = async () => {
     })
     replyContent.value = ''
     showReply.value = false
-    emit('refresh')
-    toast.success('回复成功')
+    if (result.comment && result.comment.reviewStatus === 'APPROVED') {
+      emit('reply-added', result.comment, props.comment.id)
+    }
+    if (result.warning) {
+      toast.warning(result.warning)
+    } else {
+      toast.success('回复成功')
+    }
   } catch (e: any) {
     toast.error(e.message || '回复失败')
   } finally {
@@ -299,7 +309,7 @@ const handleDelete = async () => {
     await $fetch(`/api/comments/${props.comment.id}`, {
       method: 'DELETE'
     })
-    emit('refresh')
+    emit('deleted', props.comment.id, props.isReply || false, props.comment.parentId || undefined)
     toast.success('删除成功')
   } catch (e: any) {
     toast.error(e.message || '删除失败')
