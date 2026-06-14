@@ -174,9 +174,24 @@
         </div>
 
         <!-- Related Recommendations -->
-        <div v-if="!recLoading && (similarUsersNovels.length > 0 || similarTagsNovels.length > 0)" class="space-y-12">
+        <div class="mt-12 space-y-12">
+          <!-- Loading State -->
+          <div v-if="recLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div v-for="i in 6" :key="i" class="card p-4 animate-pulse">
+              <div class="flex gap-4">
+                <div class="w-16 h-24 bg-white/10 rounded-lg flex-shrink-0" />
+                <div class="flex-1 space-y-2">
+                  <div class="h-4 bg-white/10 rounded w-3/4" />
+                  <div class="h-3 bg-white/10 rounded w-1/2" />
+                  <div class="h-3 bg-white/10 rounded w-2/3" />
+                  <div class="h-3 bg-white/10 rounded w-1/3 mt-4" />
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- People Also Viewed -->
-          <section v-if="similarUsersNovels.length > 0">
+          <section v-else-if="similarUsersNovels.length > 0">
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-2xl font-bold flex items-center gap-2">
                 <Icon name="ph:users-fill" class="text-neuro-primary" />
@@ -207,7 +222,7 @@
                     >
                       {{ item.title }}
                     </NuxtLink>
-                    <p class="text-xs text-white/50 mb-2">{{ item.author?.username }}</p>
+                    <p class="text-xs text-white/50 mb-2">{{ item.author?.username || '匿名作者' }}</p>
                     <div class="flex items-center gap-3 text-xs text-white/50 mb-2">
                       <span class="flex items-center gap-1">
                         <Icon name="ph:bookmark-simple-fill" class="text-neuro-secondary" />
@@ -226,6 +241,13 @@
                       <Icon name="ph:lightbulb-fill" class="flex-shrink-0" />
                       <span class="truncate">{{ reason }}</span>
                     </p>
+                    <p
+                      v-if="!item.recommendation?.reasons?.length"
+                      class="text-xs text-white/40 flex items-center gap-1"
+                    >
+                      <Icon name="ph:star-fill" class="flex-shrink-0" />
+                      <span>热门作品推荐</span>
+                    </p>
                   </div>
                 </div>
                 <button
@@ -240,7 +262,7 @@
           </section>
 
           <!-- Similar Tags -->
-          <section v-if="similarTagsNovels.length > 0">
+          <section v-else-if="similarTagsNovels.length > 0">
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-2xl font-bold flex items-center gap-2">
                 <Icon name="ph:tag-fill" class="text-neuro-accent" />
@@ -271,7 +293,7 @@
                     >
                       {{ item.title }}
                     </NuxtLink>
-                    <p class="text-xs text-white/50 mb-2">{{ item.author?.username }}</p>
+                    <p class="text-xs text-white/50 mb-2">{{ item.author?.username || '匿名作者' }}</p>
                     <div class="flex items-center gap-3 text-xs text-white/50 mb-2">
                       <span class="flex items-center gap-1">
                         <Icon name="ph:bookmark-simple-fill" class="text-neuro-secondary" />
@@ -290,6 +312,13 @@
                       <Icon name="ph:lightbulb-fill" class="flex-shrink-0" />
                       <span class="truncate">{{ reason }}</span>
                     </p>
+                    <p
+                      v-if="!item.recommendation?.reasons?.length"
+                      class="text-xs text-white/40 flex items-center gap-1"
+                    >
+                      <Icon name="ph:star-fill" class="flex-shrink-0" />
+                      <span>热门作品推荐</span>
+                    </p>
                   </div>
                 </div>
                 <button
@@ -302,20 +331,6 @@
               </div>
             </div>
           </section>
-        </div>
-
-        <div v-if="recLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div v-for="i in 6" :key="i" class="card p-4 animate-pulse">
-            <div class="flex gap-4">
-              <div class="w-16 h-24 bg-white/10 rounded-lg flex-shrink-0" />
-              <div class="flex-1 space-y-2">
-                <div class="h-4 bg-white/10 rounded w-3/4" />
-                <div class="h-3 bg-white/10 rounded w-1/2" />
-                <div class="h-3 bg-white/10 rounded w-2/3" />
-                <div class="h-3 bg-white/10 rounded w-1/3 mt-4" />
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -381,7 +396,8 @@ async function fetchRecommendations() {
     const res: any = await $fetch(`/api/recommendations/novel/${novelId.value}`)
     similarUsersNovels.value = res.similarUsers || []
     similarTagsNovels.value = res.similarTags || []
-  } catch (e) {
+  } catch (e: any) {
+    console.error('[Recommendation] Failed to load:', e)
     similarUsersNovels.value = []
     similarTagsNovels.value = []
   } finally {

@@ -280,10 +280,54 @@ export async function getColdStartRecommendations(
     .slice(0, limit)
 }
 
+export async function getFallbackRecommendations(
+  excludeNovelId: number,
+  limit: number = 6,
+  reason: string = '热门作品推荐'
+): Promise<RecommendationItem[]> {
+  const novels = await prisma.novel.findMany({
+    where: { id: { not: excludeNovelId } },
+    include: {
+      _count: { select: { favorites: true, ratings: true } },
+      ratings: { select: { score: true } }
+    },
+    orderBy: [
+      { favorites: { _count: 'desc' } },
+      { viewCount: 'desc' }
+    ],
+    take: limit * 2
+  })
+
+  return novels
+    .map(novel => {
+      const avgRating = novel.ratings.length > 0
+        ? novel.ratings.reduce((s, r) => s + r.score, 0) / novel.ratings.length
+        : 0
+      const score = (novel._count.favorites || 0) / 100 + avgRating + (novel.viewCount || 0) / 10000
+
+      return {
+        novelId: novel.id,
+        score,
+        reasons: [reason]
+      }
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+}
+
 export async function getSimilarUsersRecommendations(
   novelId: number,
   limit: number = 6
 ): Promise<RecommendationItem[]> {
+  const targetNovel = await prisma.novel.findUnique({
+    where: { id: novelId },
+    select: { title: true, tags: true }
+  })
+
+  if (!targetNovel) {
+    return getFallbackRecommendations(novelId, limit, '热门作品推荐')
+  }
+
   const favoriteUsers = await prisma.favorite.findMany({
     where: { novelId },
     select: { userId: true },
@@ -292,7 +336,9 @@ export async function getSimilarUsersRecommendations(
 
   const userIds = favoriteUsers.map(f => f.userId)
   if (userIds.length === 0) {
-    return getSimilarTagRecommendations(novelId, limit)
+    const tagRecs = await getSimilarTagRecommendations(novelId, limit)
+    if (tagRecs.length > 0) return tagRecs
+    return getFallbackRecommendations(novelId, limit, '热门作品推荐')
   }
 
   const otherFavorites = await prisma.favorite.findMany({
@@ -312,11 +358,6 @@ export async function getSimilarUsersRecommendations(
     novelUserCounts[fav.novelId].add(fav.userId)
   }
 
-  const targetNovel = await prisma.novel.findUnique({
-    where: { id: novelId },
-    select: { title: true, tags: true }
-  })
-
   const entries = Object.entries(novelUserCounts)
     .map(([nId, users]) => ({
       novelId: Number(nId),
@@ -325,6 +366,12 @@ export async function getSimilarUsersRecommendations(
     }))
     .sort((a, b) => b.ratio - a.ratio)
     .slice(0, limit * 2)
+
+  if (entries.length === 0) {
+    const tagRecs = await getSimilarTagRecommendations(novelId, limit)
+    if (tagRecs.length > 0) return tagRecs
+    return getFallbackRecommendations(novelId, limit, '热门作品推荐')
+  }
 
   const novelIds = entries.map(e => e.novelId)
   const novels = await prisma.novel.findMany({
@@ -338,19 +385,19 @@ export async function getSimilarUsersRecommendations(
   const novelMap = new Map(novels.map(n => [n.id, n]))
 
   const results: RecommendationItem[] = entries
-    .map(({ novelId, ratio }) => {
-      const novel = novelMap.get(novelId)
+    .map(({ novelId: recNovelId, ratio }) => {
+      const novel = novelMap.get(recNovelId)
       if (!novel) return null
 
-      const tagSim = computeTagSimilarity(targetNovel?.tags || [], novel.tags)
+      const tagSim = computeTagSimilarity(targetNovel.tags, novel.tags)
       const score = ratio * 2 + tagSim
 
       const reasons: string[] = []
       if (ratio >= 0.1) {
-        reasons.push(`看过《${targetNovel?.title}》的人还看了`)
+        reasons.push(`看过《${targetNovel.title}》的人还看了`)
       }
       if (tagSim > 0.3) {
-        const commonTags = novel.tags.filter(t => targetNovel?.tags.includes(t)).slice(0, 2)
+        const commonTags = novel.tags.filter(t => targetNovel.tags.includes(t)).slice(0, 2)
         if (commonTags.length > 0) {
           reasons.push(`相似标签：${commonTags.map(t => `#${t}#`).join(' ')}`)
         }
@@ -360,12 +407,16 @@ export async function getSimilarUsersRecommendations(
       }
 
       return {
-        novelId,
+        novelId: recNovelId,
         score,
         reasons: Array.from(new Set(reasons)).slice(0, 2)
       }
     })
     .filter((r): r is RecommendationItem => r !== null)
+
+  if (results.length === 0) {
+    return getFallbackRecommendations(novelId, limit, '热门作品推荐')
+  }
 
   return results.slice(0, limit)
 }
@@ -379,20 +430,30 @@ export async function getSimilarTagRecommendations(
     select: { title: true, tags: true, authorId: true }
   })
 
-  if (!targetNovel) return []
+  if (!targetNovel) {
+    return getFallbackRecommendations(novelId, limit, '热门作品推荐')
+  }
 
-  const candidates = await prisma.novel.findMany({
-    where: {
-      id: { not: novelId },
-      tags: { hasSome: targetNovel.tags }
-    },
-    include: {
-      author: { select: { id: true, username: true } },
-      _count: { select: { favorites: true, ratings: true } },
-      ratings: { select: { score: true } }
-    },
-    take: 200
-  })
+  let candidates: any[] = []
+
+  if (targetNovel.tags.length > 0) {
+    candidates = await prisma.novel.findMany({
+      where: {
+        id: { not: novelId },
+        tags: { hasSome: targetNovel.tags }
+      },
+      include: {
+        author: { select: { id: true, username: true } },
+        _count: { select: { favorites: true, ratings: true } },
+        ratings: { select: { score: true } }
+      },
+      take: 200
+    })
+  }
+
+  if (candidates.length === 0) {
+    return getFallbackRecommendations(novelId, limit, '热门作品推荐')
+  }
 
   return candidates
     .map(novel => {
@@ -610,23 +671,44 @@ export async function getCachedNovelRecommendations(novelId: number) {
   let similarUsers: RecommendationItem[]
   let similarTags: RecommendationItem[]
 
+  let cachedUsers: RecommendationItem[] = []
+  let cachedTags: RecommendationItem[] = []
+  let usersCacheValid = false
+  let tagsCacheValid = false
+
   if (usersCache && new Date(usersCache.updatedAt).getTime() > now - CACHE_MAX_AGE) {
     try {
-      similarUsers = JSON.parse(usersCache.data)
-    } catch {
-      similarUsers = await getSimilarUsersRecommendations(novelId, 6)
-    }
-  } else {
-    similarUsers = await getSimilarUsersRecommendations(novelId, 6)
+      cachedUsers = JSON.parse(usersCache.data)
+      usersCacheValid = cachedUsers.length > 0
+    } catch {}
   }
 
   if (tagsCache && new Date(tagsCache.updatedAt).getTime() > now - CACHE_MAX_AGE) {
     try {
-      similarTags = JSON.parse(tagsCache.data)
-    } catch {
-      similarTags = await getSimilarTagRecommendations(novelId, 6)
-    }
+      cachedTags = JSON.parse(tagsCache.data)
+      tagsCacheValid = cachedTags.length > 0
+    } catch {}
+  }
+
+  if (usersCacheValid && tagsCacheValid) {
+    similarUsers = cachedUsers
+    similarTags = cachedTags
+  } else if (usersCacheValid) {
+    similarUsers = cachedUsers
+    similarTags = await getSimilarTagRecommendations(novelId, 6)
+  } else if (tagsCacheValid) {
+    similarUsers = await getSimilarUsersRecommendations(novelId, 6)
+    similarTags = cachedTags
   } else {
+    const recalculated = await cacheNovelRecommendations(novelId)
+    similarUsers = recalculated.similarUsers
+    similarTags = recalculated.similarTags
+  }
+
+  if (similarUsers.length === 0) {
+    similarUsers = await getSimilarUsersRecommendations(novelId, 6)
+  }
+  if (similarTags.length === 0) {
     similarTags = await getSimilarTagRecommendations(novelId, 6)
   }
 
