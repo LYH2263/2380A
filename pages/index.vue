@@ -1,5 +1,9 @@
 <template>
   <div class="min-h-screen">
+    <AnnouncementBar />
+
+    <BannerCarousel class="container mx-auto px-4 pt-6" />
+
     <!-- Hero Section -->
     <section class="relative py-20 overflow-hidden">
       <!-- Animated Background -->
@@ -265,6 +269,75 @@
       </div>
     </section>
 
+    <!-- Active Events Section -->
+    <section v-if="activeEvents.length > 0" class="py-16">
+      <div class="container mx-auto px-4">
+        <div class="flex items-center justify-between mb-8">
+          <h2 class="text-2xl font-bold flex items-center gap-2">
+            <Icon name="ph:calendar-star-fill" class="text-neuro-accent" />
+            正在进行的活动
+          </h2>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <NuxtLink
+            v-for="event in activeEvents"
+            :key="event.id"
+            :to="`/events/${event.id}`"
+            class="card overflow-hidden hover:scale-[1.02] transition-all duration-300 group"
+          >
+            <div class="relative h-40 overflow-hidden bg-gradient-to-br from-neuro-primary/30 via-neuro-secondary/30 to-neuro-accent/30">
+              <img
+                v-if="event.coverImage"
+                :src="event.coverImage"
+                :alt="event.title"
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+              />
+              <div v-else class="w-full h-full flex items-center justify-center">
+                <Icon name="ph:confetti-fill" class="text-6xl text-white/30" />
+              </div>
+              <div class="absolute top-3 left-3 flex gap-2">
+                <span
+                  :class="[
+                    'px-2 py-1 rounded text-xs font-medium',
+                    eventTypeClasses[event.type]
+                  ]"
+                >
+                  {{ eventTypeLabels[event.type] }}
+                </span>
+                <span
+                  :class="[
+                    'px-2 py-1 rounded text-xs font-medium',
+                    eventStatusClasses[event.status]
+                  ]"
+                >
+                  {{ eventStatusLabels[event.status] }}
+                </span>
+              </div>
+            </div>
+            <div class="p-5">
+              <h3 class="font-bold text-lg mb-2 line-clamp-1 group-hover:text-neuro-primary transition">
+                {{ event.title }}
+              </h3>
+              <p class="text-white/60 text-sm line-clamp-2 mb-3">
+                {{ event.description }}
+              </p>
+              <div class="flex items-center justify-between text-xs text-white/50">
+                <span class="flex items-center gap-1">
+                  <Icon name="ph:clock" />
+                  {{ formatEventTime(event) }}
+                </span>
+                <span class="flex items-center gap-1">
+                  <Icon name="ph:users" />
+                  {{ event._count?.participations || 0 }} 部作品
+                </span>
+              </div>
+            </div>
+          </NuxtLink>
+        </div>
+      </div>
+    </section>
+
     <!-- Tags Section -->
     <section class="py-16">
       <div class="container mx-auto px-4">
@@ -319,6 +392,50 @@ const latestNovels = ref<any[]>([])
 const tags = ref<any[]>([])
 const recommendations = ref<any[]>([])
 const needsOnboarding = ref(false)
+const activeEvents = ref<any[]>([])
+
+const eventTypeLabels: Record<string, string> = {
+  CONTEST: '征文比赛',
+  VOTING: '投票评选',
+  COLLECTION: '作品征集',
+  PROMOTION: '推广活动'
+}
+
+const eventTypeClasses: Record<string, string> = {
+  CONTEST: 'bg-pink-500/20 text-pink-400',
+  VOTING: 'bg-cyan-500/20 text-cyan-400',
+  COLLECTION: 'bg-amber-500/20 text-amber-400',
+  PROMOTION: 'bg-violet-500/20 text-violet-400'
+}
+
+const eventStatusLabels: Record<string, string> = {
+  DRAFT: '草稿',
+  UPCOMING: '即将开始',
+  ONGOING: '进行中',
+  ENDED: '已结束',
+  CANCELLED: '已取消'
+}
+
+const eventStatusClasses: Record<string, string> = {
+  DRAFT: 'bg-gray-500/20 text-gray-400',
+  UPCOMING: 'bg-blue-500/20 text-blue-400',
+  ONGOING: 'bg-green-500/20 text-green-400',
+  ENDED: 'bg-purple-500/20 text-purple-400',
+  CANCELLED: 'bg-red-500/20 text-red-400'
+}
+
+function formatEventTime(event: any): string {
+  const now = new Date()
+  const start = new Date(event.eventStartAt)
+  const end = new Date(event.eventEndAt)
+  if (now < start) {
+    return `即将开始: ${start.toLocaleDateString('zh-CN')}`
+  } else if (now <= end) {
+    return `进行中 · 截止: ${end.toLocaleDateString('zh-CN')}`
+  } else {
+    return `已结束: ${end.toLocaleDateString('zh-CN')}`
+  }
+}
 
 const rankingTabs = [
   { type: 'POPULARITY', label: '人气榜', icon: 'ph:fire-fill' },
@@ -395,17 +512,19 @@ async function handleNotInterested(novelId: number) {
   }
 }
 
-const [popularRes, latestRes, tagsRes, rankingsRes] = await Promise.all([
+const [popularRes, latestRes, tagsRes, rankingsRes, eventsRes] = await Promise.all([
   useFetch('/api/novels', { query: { sort: 'popular', limit: 4 } }),
   useFetch('/api/novels', { query: { sort: 'latest', limit: 4 } }),
   useFetch('/api/tags'),
-  useFetch('/api/rankings/home')
+  useFetch('/api/rankings/home'),
+  useFetch('/api/events', { query: { status: 'ONGOING', limit: 6 } })
 ])
 
 popularNovels.value = popularRes.data.value?.novels || []
 latestNovels.value = latestRes.data.value?.novels || []
 tags.value = tagsRes.data.value?.tags?.slice(0, 10) || []
 homeRankings.value = rankingsRes.data.value?.rankings || {}
+activeEvents.value = eventsRes.data.value?.events || []
 loading.value = false
 
 if (user.value) {

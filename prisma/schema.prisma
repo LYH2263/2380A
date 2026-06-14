@@ -49,6 +49,12 @@ model User {
   tagPreferences          UserTagPreference[]
   recommendationFeedbacks RecommendationFeedback[]
   reviewRecords           ReviewRecord[]           @relation("ReviewerRecords")
+  createdAnnouncements    Announcement[]
+  dismissedAnnouncements  AnnouncementDismiss[]
+  createdEvents           Event[]
+  eventParticipations     EventParticipation[]
+  eventVotes              EventVote[]
+  createdBanners          Banner[]
 
   @@map("users")
 }
@@ -89,6 +95,7 @@ model Novel {
   backups                 NovelBackup[]
   recommendationFeedbacks RecommendationFeedback[]
   reviewRecords           ReviewRecord[]
+  eventParticipations     EventParticipation[]
 
   @@map("novels")
 }
@@ -740,4 +747,198 @@ model SensitiveWord {
   @@index([word])
   @@index([level])
   @@map("sensitive_words")
+}
+
+// ==================== 活动与公告系统相关模型 ====================
+
+// 公告优先级
+enum AnnouncementPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// 公告目标用户群
+enum AnnouncementTarget {
+  ALL
+  USER
+  AUTHOR
+}
+
+// 公告模型
+model Announcement {
+  id          Int                  @id @default(autoincrement())
+  title       String
+  content     String               @db.Text
+  priority    AnnouncementPriority @default(MEDIUM)
+  target      AnnouncementTarget   @default(ALL)
+  startAt     DateTime
+  endAt       DateTime
+  isActive    Boolean              @default(true)
+  sortOrder   Int                  @default(0)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  createdById Int?
+
+  createdBy User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  dismisses AnnouncementDismiss[]
+
+  @@index([isActive, priority, sortOrder])
+  @@index([startAt, endAt])
+  @@map("announcements")
+}
+
+// 公告用户已读/不再显示记录
+model AnnouncementDismiss {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  announcementId Int
+  dismissedAt    DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, announcementId])
+  @@index([userId])
+  @@map("announcement_dismisses")
+}
+
+// 活动类型
+enum EventType {
+  CONTEST
+  VOTING
+  COLLECTION
+  PROMOTION
+}
+
+// 活动状态
+enum EventStatus {
+  DRAFT
+  UPCOMING
+  ONGOING
+  ENDED
+  CANCELLED
+}
+
+// 活动模型
+model Event {
+  id            Int         @id @default(autoincrement())
+  title         String
+  description   String      @db.Text
+  rules         String      @db.Text
+  coverImage    String?
+  type          EventType   @default(CONTEST)
+  status        EventStatus @default(DRAFT)
+  registrationStartAt DateTime
+  registrationEndAt   DateTime
+  eventStartAt        DateTime
+  eventEndAt          DateTime
+  minWordCount  Int?
+  maxWordCount  Int?
+  allowedTags   String[]
+  requireNew    Boolean     @default(false)
+  sortOrder     Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  createdById   Int?
+
+  createdBy     User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  participations EventParticipation[]
+  eventStats    EventDailyStat[]
+  votes         EventVote[]
+
+  @@index([status, sortOrder])
+  @@index([eventStartAt, eventEndAt])
+  @@map("events")
+}
+
+// 活动参与模型
+enum ParticipationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+model EventParticipation {
+  id              Int                 @id @default(autoincrement())
+  eventId         Int
+  novelId         Int
+  userId          Int
+  status          ParticipationStatus @default(PENDING)
+  voteCount       Int                 @default(0)
+  viewCount       Int                 @default(0)
+  rejectionReason String?             @db.Text
+  registeredAt    DateTime            @default(now())
+  approvedAt      DateTime?
+
+  event      Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  novel      Novel      @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyStats EventDailyStat[]
+  votes      EventVote[]
+
+  @@unique([eventId, novelId])
+  @@index([eventId, status])
+  @@index([userId])
+  @@map("event_participations")
+}
+
+// 活动每日统计
+model EventDailyStat {
+  id               Int      @id @default(autoincrement())
+  eventId          Int
+  participationId  Int?
+  date             DateTime @db.Date
+  viewCount        Int      @default(0)
+  voteCount        Int      @default(0)
+  chapterViewCount Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  event         Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  participation EventParticipation? @relation(fields: [participationId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, participationId, date])
+  @@index([eventId, date])
+  @@map("event_daily_stats")
+}
+
+// 投票记录
+model EventVote {
+  id              Int      @id @default(autoincrement())
+  eventId         Int
+  participationId Int
+  userId          Int
+  createdAt       DateTime @default(now())
+
+  event         Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  participation EventParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, participationId, userId])
+  @@index([eventId, userId])
+  @@map("event_votes")
+}
+
+// Banner 模型
+model Banner {
+  id         Int      @id @default(autoincrement())
+  title      String
+  imageUrl   String
+  linkUrl    String
+  startAt    DateTime
+  endAt      DateTime
+  sortOrder  Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  createdById Int?
+
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([isActive, sortOrder])
+  @@index([startAt, endAt])
+  @@map("banners")
 }

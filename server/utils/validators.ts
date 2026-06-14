@@ -106,3 +106,92 @@ export const sensitiveWordQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20)
 })
+
+// ==================== 活动与公告系统验证 Schema ====================
+
+export const announcementSchema = z.object({
+  title: z.string().min(1, '标题不能为空').max(200, '标题最多200字'),
+  content: z.string().min(1, '内容不能为空'),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional().default('MEDIUM'),
+  target: z.enum(['ALL', 'USER', 'AUTHOR']).optional().default('ALL'),
+  startAt: z.string().datetime(),
+  endAt: z.string().datetime(),
+  isActive: z.boolean().optional().default(true),
+  sortOrder: z.number().int().optional().default(0)
+})
+
+export const announcementQuerySchema = z.object({
+  keyword: z.string().optional(),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT', '']).optional().default(''),
+  isActive: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20)
+})
+
+export const announcementDismissSchema = z.object({
+  announcementId: z.number().int().positive()
+})
+
+export const eventSchema = z.object({
+  title: z.string().min(1, '活动标题不能为空').max(200, '活动标题最多200字'),
+  description: z.string().min(1, '活动描述不能为空'),
+  rules: z.string().min(1, '活动规则不能为空'),
+  coverImage: z.string().url().optional().or(z.literal('')),
+  type: z.enum(['CONTEST', 'VOTING', 'COLLECTION', 'PROMOTION']).optional().default('CONTEST'),
+  status: z.enum(['DRAFT', 'UPCOMING', 'ONGOING', 'ENDED', 'CANCELLED']).optional().default('DRAFT'),
+  registrationStartAt: z.string().datetime(),
+  registrationEndAt: z.string().datetime(),
+  eventStartAt: z.string().datetime(),
+  eventEndAt: z.string().datetime(),
+  minWordCount: z.number().int().positive().optional(),
+  maxWordCount: z.number().int().positive().optional(),
+  allowedTags: z.array(z.string()).optional().default([]),
+  requireNew: z.boolean().optional().default(false),
+  sortOrder: z.number().int().optional().default(0)
+})
+
+export const eventQuerySchema = z.object({
+  keyword: z.string().optional(),
+  type: z.enum(['CONTEST', 'VOTING', 'COLLECTION', 'PROMOTION', '']).optional().default(''),
+  status: z.enum(['DRAFT', 'UPCOMING', 'ONGOING', 'ENDED', 'CANCELLED', '']).optional().default(''),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20)
+})
+
+export const eventParticipationSchema = z.object({
+  eventId: z.number().int().positive(),
+  novelId: z.number().int().positive()
+})
+
+export const eventParticipationActionSchema = z.object({
+  status: z.enum(['APPROVED', 'REJECTED']),
+  rejectionReason: z.string().max(500, '拒绝理由最多500字').optional()
+})
+
+export const eventVoteSchema = z.object({
+  participationId: z.number().int().positive()
+})
+
+export const bannerSchema = z.object({
+  title: z.string().min(1, '标题不能为空').max(200, '标题最多200字'),
+  imageUrl: z.string().url('图片地址格式不正确'),
+  linkUrl: z.string().url('跳转链接格式不正确'),
+  startAt: z.string().datetime(),
+  endAt: z.string().datetime(),
+  sortOrder: z.number().int().optional().default(0),
+  isActive: z.boolean().optional().default(true)
+})
+
+export const bannerQuerySchema = z.object({
+  keyword: z.string().optional(),
+  isActive: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20)
+})
+
+export const bannerReorderSchema = z.object({
+  items: z.array(z.object({
+    id: z.number().int().positive(),
+    sortOrder: z.number().int()
+  }))
+})
